@@ -8,12 +8,30 @@ const contactRoutes = require('./routes/contactRoutes');
 const templateRoutes = require('./routes/templateRoutes');
 const campaignRoutes = require('./routes/campaignRoutes');
 const logRoutes = require('./routes/logRoutes');
+const webhookRoutes = require('./routes/webhookRoutes');
 
 connectDB();
 
 const app = express();
 
 app.use(cors());
+
+// Middleware to capture raw body for webhook signature verification
+app.use((req, res, next) => {
+  if (req.path.includes('/webhooks/')) {
+    let data = '';
+    req.on('data', (chunk) => {
+      data += chunk;
+    });
+    req.on('end', () => {
+      req.body = data ? JSON.parse(data) : {};
+      next();
+    });
+  } else {
+    next();
+  }
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -26,6 +44,7 @@ app.use('/api/contacts', contactRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/logs', logRoutes);
+app.use('/api/webhooks', webhookRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

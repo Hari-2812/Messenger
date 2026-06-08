@@ -21,12 +21,21 @@ const getLogs = async (req, res) => {
 
 const getDashboardStats = async (req, res) => {
   try {
-    const [totalContacts, totalTemplates, totalCampaigns, sentLogs] = await Promise.all([
+    const [totalContacts, totalTemplates, totalCampaigns] = await Promise.all([
       Contact.countDocuments(),
       Template.countDocuments(),
       Campaign.countDocuments(),
-      MessageLog.countDocuments({ status: 'sent' }),
     ]);
+
+    // Count messages by status
+    const [sentCount, deliveredCount, readCount, failedCount, pendingCount] =
+      await Promise.all([
+        MessageLog.countDocuments({ status: 'sent' }),
+        MessageLog.countDocuments({ status: 'delivered' }),
+        MessageLog.countDocuments({ status: 'read' }),
+        MessageLog.countDocuments({ status: 'failed' }),
+        MessageLog.countDocuments({ status: 'pending' }),
+      ]);
 
     const recentCampaigns = await Campaign.find()
       .populate('templateId', 'title')
@@ -37,7 +46,11 @@ const getDashboardStats = async (req, res) => {
       totalContacts,
       totalTemplates,
       totalCampaigns,
-      totalMessagesSent: sentLogs,
+      totalMessagesSent: sentCount,
+      totalMessagesDelivered: deliveredCount,
+      totalMessagesRead: readCount,
+      totalMessagesFailed: failedCount,
+      totalMessagesPending: pendingCount,
       recentCampaigns,
     });
   } catch (error) {

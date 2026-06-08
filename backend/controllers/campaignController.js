@@ -2,7 +2,8 @@ const Campaign = require('../models/Campaign');
 const Contact = require('../models/Contact');
 const Template = require('../models/Template');
 const MessageLog = require('../models/MessageLog');
-const { sendMessage, replaceVariables } = require('../services/whatsappProvider');
+const ProviderFactory = require('../services/ProviderFactory');
+const campaignQueue = require('../services/campaignQueue');
 
 const getCampaigns = async (req, res) => {
   try {
@@ -57,44 +58,7 @@ const createCampaign = async (req, res) => {
 };
 
 const processCampaign = async (campaign, template, contacts) => {
-  let sentCount = 0;
-  let failedCount = 0;
-
-  for (const contact of contacts) {
-    const message = replaceVariables(template.message, contact);
-
-    try {
-      const result = await sendMessage(contact.phone, message);
-
-      await MessageLog.create({
-        campaignId: campaign._id,
-        contactId: contact._id,
-        phone: contact.phone,
-        message,
-        status: result.success ? 'sent' : 'failed',
-      });
-
-      if (result.success) {
-        sentCount++;
-      } else {
-        failedCount++;
-      }
-    } catch (error) {
-      await MessageLog.create({
-        campaignId: campaign._id,
-        contactId: contact._id,
-        phone: contact.phone,
-        message,
-        status: 'failed',
-      });
-      failedCount++;
-    }
-  }
-
-  campaign.sentCount = sentCount;
-  campaign.failedCount = failedCount;
-  campaign.status = failedCount === contacts.length ? 'failed' : 'completed';
-  await campaign.save();
+  await campaignQueue.processCampaignWithQueue(campaign, template, contacts);
 };
 
 // Preview messages without sending
@@ -113,7 +77,7 @@ const previewCampaign = async (req, res) => {
       contactId: contact._id,
       name: contact.name,
       phone: contact.phone,
-      message: replaceVariables(template.message, contact),
+      message: ProviderFactory.replaceVariables(template.message, contact),
     }));
 
     res.json(previews);
