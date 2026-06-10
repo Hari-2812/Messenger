@@ -47,20 +47,27 @@ const sendWithConcurrency = async (items, concurrency = 5) => {
 
 /**
  * Send single message and create log entry
- * @param {Object} item - { phone, message, contactId, campaignId }
+ * @param {Object} item - { phone, message, contactId, campaignId, templateName, parameters }
  * @returns {Promise<Object>} - { success, error }
  */
 const sendSingleMessage = async (item) => {
-  const { phone, message, contactId, campaignId } = item;
+  const { phone, message, contactId, campaignId, templateName, parameters } = item;
 
   try {
-    const result = await ProviderFactory.sendMessage(phone, message);
+    let result;
+
+    // If a Meta template name is provided, use template messaging
+    if (templateName) {
+      result = await ProviderFactory.sendTemplateMessage(phone, templateName, parameters || []);
+    } else {
+      result = await ProviderFactory.sendMessage(phone, message);
+    }
 
     const logData = {
       campaignId,
       contactId,
       phone,
-      message,
+      message: message || `[Template: ${templateName}]`,
       provider: result.provider || 'meta',
       status: result.success ? 'sent' : 'failed',
       sentAt: result.sentAt || new Date(),
@@ -85,7 +92,7 @@ const sendSingleMessage = async (item) => {
       campaignId,
       contactId,
       phone,
-      message,
+      message: message || `[Template: ${templateName}]`,
       provider: 'meta',
       status: 'failed',
       failureReason: error.message,
@@ -107,14 +114,27 @@ const sendSingleMessage = async (item) => {
  */
 const processCampaignWithQueue = async (campaign, template, contacts) => {
   const concurrency = parseInt(process.env.CAMPAIGN_CONCURRENCY || '5', 10);
+  const isMeta = (process.env.WHATSAPP_PROVIDER || 'meta').toLowerCase() === 'meta';
 
   // Prepare items for sending
-  const items = contacts.map((contact) => ({
-    phone: contact.phone,
-    message: ProviderFactory.replaceVariables(template.message, contact),
-    contactId: contact._id,
-    campaignId: campaign._id,
-  }));
+  const items = contacts.map((contact) => {
+    const item = {
+      phone: contact.phone,
+      message: ProviderFactory.replaceVariables(template.message, contact),
+      contactId: contact._id,
+      campaignId: campaign._id,
+    };
+
+    // For Meta provider, use template messaging (required for business-initiated conversations)
+    if (isMeta) {
+      // Use 'hello_world' as default template (available in all Meta test accounts)
+      // hello_world has no body parameters, so pass empty array
+      item.templateName = 'hello_world';
+      item.parameters = [];
+    }
+
+    return item;
+  });
 
   // Send with concurrency control
   const results = await sendWithConcurrency(items, concurrency);

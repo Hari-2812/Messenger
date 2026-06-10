@@ -41,6 +41,23 @@ const sendMessage = async (phone, message, providerType) => {
 };
 
 /**
+ * Send template message using configured provider
+ * @param {string} phone - Phone number
+ * @param {string} templateName - Meta template name
+ * @param {Array} parameters - Template parameters
+ * @param {string} providerType - Provider type override
+ * @returns {Promise<Object>} - Result from provider
+ */
+const sendTemplateMessage = async (phone, templateName, parameters = [], providerType) => {
+  const provider = getProvider(providerType);
+  if (provider.sendTemplateMessage) {
+    return provider.sendTemplateMessage(phone, templateName, parameters);
+  }
+  // Fallback for mock provider: use sendMessage with template name as message
+  return provider.sendMessage(phone, `[Template: ${templateName}]`);
+};
+
+/**
  * Replace variables in template
  * @param {string} template - Template text
  * @param {Object} contact - Contact object
@@ -55,6 +72,7 @@ const replaceVariables = (template, contact, providerType) => {
 module.exports = {
   getProvider,
   sendMessage,
+  sendTemplateMessage,
   replaceVariables,
   PROVIDER_TYPES,
 };

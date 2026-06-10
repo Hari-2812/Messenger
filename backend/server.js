@@ -9,6 +9,7 @@ const templateRoutes = require('./routes/templateRoutes');
 const campaignRoutes = require('./routes/campaignRoutes');
 const logRoutes = require('./routes/logRoutes');
 const webhookRoutes = require('./routes/webhookRoutes');
+const testRoutes = require('./routes/testRoutes');
 
 connectDB();
 
@@ -45,6 +46,7 @@ app.use('/api/templates', templateRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/test-whatsapp', testRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
