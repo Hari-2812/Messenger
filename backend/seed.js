@@ -8,7 +8,17 @@ const seed = async () => {
 
   const existing = await User.findOne({ email: 'admin@campaign.com' });
   if (existing) {
-    console.log('Default user already exists');
+    const passwordMatches = await existing.matchPassword('admin123');
+
+    if (!passwordMatches) {
+      existing.password = 'admin123';
+      existing.markModified('password');
+      await existing.save();
+      console.log('Default user password reset');
+    } else {
+      console.log('Default user already exists');
+    }
+
     console.log('Email: admin@campaign.com');
     console.log('Password: admin123');
     process.exit(0);

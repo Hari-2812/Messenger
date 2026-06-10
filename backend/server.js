@@ -1,7 +1,9 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const connectDB = require('./config/db');
+const { validateEnv } = require('./config/env');
 
 const authRoutes = require('./routes/authRoutes');
 const contactRoutes = require('./routes/contactRoutes');
@@ -11,33 +13,41 @@ const logRoutes = require('./routes/logRoutes');
 const webhookRoutes = require('./routes/webhookRoutes');
 const testRoutes = require('./routes/testRoutes');
 
-connectDB();
-
 const app = express();
 
-app.use(cors());
+app.use(helmet());
+const corsOptions = {
+  origin(origin, callback) {
+    if (
+      !origin ||
+      origin === 'http://localhost:5173' ||
+      /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)
+    ) {
+      return callback(null, true);
+    }
 
-// Middleware to capture raw body for webhook signature verification
-app.use((req, res, next) => {
-  if (req.path.includes('/webhooks/')) {
-    let data = '';
-    req.on('data', (chunk) => {
-      data += chunk;
-    });
-    req.on('end', () => {
-      req.body = data ? JSON.parse(data) : {};
-      next();
-    });
-  } else {
-    next();
-  }
-});
+    return callback(new Error(`CORS blocked origin: ${origin}`));
+  },
+  credentials: true,
+};
 
-app.use(express.json());
+app.use(cors(corsOptions));
+
+app.use(express.json({
+  verify: (req, res, buf) => {
+    if (req.path.includes('/webhooks/')) {
+      req.rawBody = buf.toString('utf8');
+    }
+  },
+}));
 app.use(express.urlencoded({ extended: true }));
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'WhatsApp Campaign Manager API' });
+  res.json({
+    success: true,
+    status: 'OK',
+    database: 'Connected',
+  });
 });
 
 app.use('/api/auth', authRoutes);
@@ -48,13 +58,35 @@ app.use('/api/logs', logRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/test-whatsapp', testRoutes);
 
+app.use((req, res) => {
+  res.status(404).json({ message: `Route not found: ${req.method} ${req.originalUrl}` });
+});
+
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: err.message || 'Server error' });
+  console.error(err.stack || err.message);
+  const statusCode = res.statusCode && res.statusCode !== 200 ? res.statusCode : 500;
+  res.status(statusCode).json({ message: err.message || 'Server error' });
 });
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+const startServer = async () => {
+  try {
+    validateEnv();
+    await connectDB();
+
+    app.listen(PORT, () => {
+      console.log('Server Started');
+      console.log('Port:', PORT);
+    });
+  } catch (error) {
+    console.error(`Startup failed: ${error.message}`);
+    process.exit(1);
+  }
+};
+
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = app;

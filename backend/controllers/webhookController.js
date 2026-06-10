@@ -45,8 +45,7 @@ const handleWebhook = async (req, res) => {
       console.warn('WHATSAPP_APP_SECRET not configured - skipping signature verification (TEST MODE)');
       // In test mode, skip signature verification but still process the webhook
     } else {
-      // Convert body to raw JSON string for signature verification
-      const rawBodyString = JSON.stringify(rawBody);
+      const rawBodyString = req.rawBody || JSON.stringify(rawBody);
       const isValidSignature = MetaProvider.verifyWebhookSignature(
         rawBodyString,
         signature,

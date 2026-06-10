@@ -11,7 +11,11 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
+  const isBcryptHash = typeof this.password === 'string' && /^\$2[aby]\$/.test(this.password);
+
+  if (isBcryptHash) return next();
+  if (!this.isModified('password')) this.markModified('password');
+
   this.password = await bcrypt.hash(this.password, 10);
   next();
 });
