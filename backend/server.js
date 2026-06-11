@@ -12,6 +12,7 @@ const campaignRoutes = require('./routes/campaignRoutes');
 const logRoutes = require('./routes/logRoutes');
 const webhookRoutes = require('./routes/webhookRoutes');
 const testRoutes = require('./routes/testRoutes');
+const metaRoutes = require('./routes/metaRoutes');
 
 const app = express();
 
@@ -57,6 +58,7 @@ app.use('/api/campaigns', campaignRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/test-whatsapp', testRoutes);
+app.use('/api/meta', metaRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: `Route not found: ${req.method} ${req.originalUrl}` });

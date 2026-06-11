@@ -99,9 +99,10 @@ const sendMessage = async (phoneNumber, message, options = {}) => {
  * @param {string} phoneNumber - Contact phone number
  * @param {string} templateName - Template name in Meta
  * @param {Array} parameters - Template parameters for variable replacement
+ * @param {string} languageCode - Template language code (e.g. 'en_US', 'hi')
  * @returns {Promise<Object>} - Result with messageId
  */
-const sendTemplateMessage = async (phoneNumber, templateName, parameters = []) => {
+const sendTemplateMessage = async (phoneNumber, templateName, parameters = [], languageCode = 'en_US') => {
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
@@ -121,7 +122,7 @@ const sendTemplateMessage = async (phoneNumber, templateName, parameters = []) =
       template: {
         name: templateName,
         language: {
-          code: 'en_US',
+          code: languageCode,
         },
       },
     };

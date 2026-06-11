@@ -18,17 +18,22 @@ const getCampaigns = async (req, res) => {
 
 const createCampaign = async (req, res) => {
   try {
-    const { campaignName, templateId, contactIds, send } = req.body;
+    const { campaignName, templateId, metaTemplateName, metaTemplateLanguage, contactIds, send } = req.body;
 
-    if (!campaignName || !templateId || !contactIds || contactIds.length === 0) {
+    // At least one of templateId (local) or metaTemplateName (Meta) is required
+    if (!campaignName || (!templateId && !metaTemplateName) || !contactIds || contactIds.length === 0) {
       return res.status(400).json({
-        message: 'Campaign name, template, and at least one contact are required',
+        message: 'Campaign name, a Meta template (or local template), and at least one contact are required',
       });
     }
 
-    const template = await Template.findById(templateId);
-    if (!template) {
-      return res.status(404).json({ message: 'Template not found' });
+    // If a local template ID was provided, verify it exists
+    let template = null;
+    if (templateId) {
+      template = await Template.findById(templateId);
+      if (!template) {
+        return res.status(404).json({ message: 'Template not found' });
+      }
     }
 
     const contacts = await Contact.find({ _id: { $in: contactIds } });
@@ -38,7 +43,9 @@ const createCampaign = async (req, res) => {
 
     const campaign = await Campaign.create({
       campaignName,
-      templateId,
+      templateId: templateId || null,
+      metaTemplateName: metaTemplateName || null,
+      metaTemplateLanguage: metaTemplateLanguage || 'en_US',
       contactIds: contacts.map((c) => c._id),
       totalContacts: contacts.length,
       status: send ? 'sending' : 'draft',
@@ -64,7 +71,19 @@ const processCampaign = async (campaign, template, contacts) => {
 // Preview messages without sending
 const previewCampaign = async (req, res) => {
   try {
-    const { templateId, contactIds } = req.body;
+    const { templateId, metaTemplateName, contactIds } = req.body;
+
+    // For Meta templates, return a simple preview showing which template will be used
+    if (metaTemplateName && !templateId) {
+      const contacts = await Contact.find({ _id: { $in: contactIds } });
+      const previews = contacts.map((contact) => ({
+        contactId: contact._id,
+        name: contact.name,
+        phone: contact.phone,
+        message: `[Meta Template: ${metaTemplateName}] will be sent to this contact`,
+      }));
+      return res.json(previews);
+    }
 
     const template = await Template.findById(templateId);
     if (!template) {
@@ -99,7 +118,7 @@ const sendCampaign = async (req, res) => {
       return res.status(400).json({ message: 'Campaign already sent or in progress' });
     }
 
-    const template = await Template.findById(campaign.templateId);
+    const template = campaign.templateId ? await Template.findById(campaign.templateId) : null;
     const contacts = await Contact.find({ _id: { $in: campaign.contactIds } });
 
     campaign.status = 'sending';

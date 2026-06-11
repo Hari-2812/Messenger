@@ -45,13 +45,14 @@ const sendMessage = async (phone, message, providerType) => {
  * @param {string} phone - Phone number
  * @param {string} templateName - Meta template name
  * @param {Array} parameters - Template parameters
+ * @param {string} languageCode - Template language code (e.g. 'en_US')
  * @param {string} providerType - Provider type override
  * @returns {Promise<Object>} - Result from provider
  */
-const sendTemplateMessage = async (phone, templateName, parameters = [], providerType) => {
+const sendTemplateMessage = async (phone, templateName, parameters = [], languageCode = 'en_US', providerType) => {
   const provider = getProvider(providerType);
   if (provider.sendTemplateMessage) {
-    return provider.sendTemplateMessage(phone, templateName, parameters);
+    return provider.sendTemplateMessage(phone, templateName, parameters, languageCode);
   }
   // Fallback for mock provider: use sendMessage with template name as message
   return provider.sendMessage(phone, `[Template: ${templateName}]`);

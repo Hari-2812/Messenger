@@ -47,18 +47,18 @@ const sendWithConcurrency = async (items, concurrency = 5) => {
 
 /**
  * Send single message and create log entry
- * @param {Object} item - { phone, message, contactId, campaignId, templateName, parameters }
+ * @param {Object} item - { phone, message, contactId, campaignId, templateName, templateLanguage, parameters }
  * @returns {Promise<Object>} - { success, error }
  */
 const sendSingleMessage = async (item) => {
-  const { phone, message, contactId, campaignId, templateName, parameters } = item;
+  const { phone, message, contactId, campaignId, templateName, templateLanguage, parameters } = item;
 
   try {
     let result;
 
     // If a Meta template name is provided, use template messaging
     if (templateName) {
-      result = await ProviderFactory.sendTemplateMessage(phone, templateName, parameters || []);
+      result = await ProviderFactory.sendTemplateMessage(phone, templateName, parameters || [], templateLanguage || 'en_US');
     } else {
       result = await ProviderFactory.sendMessage(phone, message);
     }
@@ -120,17 +120,19 @@ const processCampaignWithQueue = async (campaign, template, contacts) => {
   const items = contacts.map((contact) => {
     const item = {
       phone: contact.phone,
-      message: ProviderFactory.replaceVariables(template.message, contact),
+      message: template ? ProviderFactory.replaceVariables(template.message, contact) : '',
       contactId: contact._id,
       campaignId: campaign._id,
     };
 
-    // For Meta provider, use template messaging (required for business-initiated conversations)
+    // For Meta provider, use the selected template from the campaign (no hardcoding)
     if (isMeta) {
-      // Use 'hello_world' as default template (available in all Meta test accounts)
-      // hello_world has no body parameters, so pass empty array
-      item.templateName = 'hello_welcome';
-      item.parameters = [];
+      const selectedTemplate = campaign.metaTemplateName || null;
+      if (selectedTemplate) {
+        item.templateName = selectedTemplate;
+        item.templateLanguage = campaign.metaTemplateLanguage || 'en_US';
+        item.parameters = [];
+      }
     }
 
     return item;

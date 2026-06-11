@@ -65,4 +65,8 @@ export const logsAPI = {
   getDashboard: () => API.get('/logs/dashboard'),
 };
 
+export const metaAPI = {
+  getTemplates: () => API.get('/meta/templates'),
+};
+
 export default API;
