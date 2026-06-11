@@ -13,6 +13,7 @@ const logRoutes = require('./routes/logRoutes');
 const webhookRoutes = require('./routes/webhookRoutes');
 const testRoutes = require('./routes/testRoutes');
 const metaRoutes = require('./routes/metaRoutes');
+const { startDeliveryTimeoutJob } = require('./services/deliveryTimeoutJob');
 
 const app = express();
 
@@ -80,6 +81,7 @@ const startServer = async () => {
     app.listen(PORT, () => {
       console.log('Server Started');
       console.log('Port:', PORT);
+      startDeliveryTimeoutJob();
     });
   } catch (error) {
     console.error(`Startup failed: ${error.message}`);
