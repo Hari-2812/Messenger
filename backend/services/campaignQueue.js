@@ -129,7 +129,7 @@ const processCampaignWithQueue = async (campaign, template, contacts) => {
     if (isMeta) {
       // Use 'hello_world' as default template (available in all Meta test accounts)
       // hello_world has no body parameters, so pass empty array
-      item.templateName = 'hello_world';
+      item.templateName = 'hello_welcome';
       item.parameters = [];
     }
 

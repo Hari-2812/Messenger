@@ -73,7 +73,7 @@ const testWhatsAppConnection = async (req, res) => {
     }
 
     // Prepare test message
-    const templateName = req.body?.templateName || 'hello_world';
+    const templateName = req.body?.templateName || 'hello_welcome';
     const useTemplate = !!req.body?.templateName || !req.body?.message;
     const message = req.body?.message || `Hello from WhatsApp Campaign Manager test - ${new Date().toISOString()}`;
 
