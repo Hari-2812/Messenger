@@ -1,6 +1,10 @@
 /**
- * Campaign Queue Service
- * Handles bulk message sending with queue management and concurrency control
+ * Campaign Queue Service — Production
+ * Handles bulk Meta WhatsApp template message sending with
+ * concurrency control and detailed per-message logging.
+ *
+ * All messages are sent via the real Meta WhatsApp Cloud API.
+ * No mock provider. No fake message IDs. No simulated delays.
  */
 
 const Campaign = require('../models/Campaign');
@@ -9,35 +13,25 @@ const MessageLog = require('../models/MessageLog');
 const ProviderFactory = require('./ProviderFactory');
 
 /**
- * Queue message sending with concurrency control
- * @param {Array} items - Array of { phone, message, contactId, campaignId }
- * @param {number} concurrency - Number of concurrent requests
- * @returns {Promise<Object>} - Results of sending
+ * Send messages with concurrency control
+ * @param {Array} items - Array of message items
+ * @param {number} concurrency - Max parallel sends
+ * @returns {Promise<Object>} - { sent, failed, errors }
  */
 const sendWithConcurrency = async (items, concurrency = 5) => {
-  const results = {
-    sent: 0,
-    failed: 0,
-    errors: [],
-  };
+  const results = { sent: 0, failed: 0, errors: [] };
 
-  // Split items into batches based on concurrency
   for (let i = 0; i < items.length; i += concurrency) {
     const batch = items.slice(i, i + concurrency);
-    const batchPromises = batch.map((item) => sendSingleMessage(item));
-    const batchResults = await Promise.allSettled(batchPromises);
+    const batchResults = await Promise.allSettled(batch.map((item) => sendSingleMessage(item)));
 
     for (const result of batchResults) {
       if (result.status === 'fulfilled') {
-        if (result.value.success) {
-          results.sent++;
-        } else {
-          results.failed++;
-          results.errors.push(result.value.error);
-        }
+        result.value.success ? results.sent++ : results.failed++;
+        if (!result.value.success) results.errors.push(result.value.error);
       } else {
         results.failed++;
-        results.errors.push(result.reason.message);
+        results.errors.push(result.reason?.message || 'Unknown error');
       }
     }
   }
@@ -46,106 +40,138 @@ const sendWithConcurrency = async (items, concurrency = 5) => {
 };
 
 /**
- * Send single message and create log entry
- * @param {Object} item - { phone, message, contactId, campaignId, templateName, templateLanguage, parameters }
- * @returns {Promise<Object>} - { success, error }
+ * Send a single template message and write a MessageLog entry.
+ * @param {Object} item - {
+ *   phone, contactId, campaignId,
+ *   templateName, templateLanguage, parameters,
+ *   previewMessage   // for log display only
+ * }
  */
 const sendSingleMessage = async (item) => {
-  const { phone, message, contactId, campaignId, templateName, templateLanguage, parameters } = item;
+  const {
+    phone,
+    contactId,
+    campaignId,
+    templateName,
+    templateLanguage,
+    parameters,
+    previewMessage,
+  } = item;
 
   try {
-    let result;
-
-    // If a Meta template name is provided, use template messaging
-    if (templateName) {
-      result = await ProviderFactory.sendTemplateMessage(phone, templateName, parameters || [], templateLanguage || 'en_US');
-    } else {
-      result = await ProviderFactory.sendMessage(phone, message);
+    // ── Validate required fields ──────────────────────────────────────────
+    if (!templateName) {
+      throw new Error('No Meta template name specified for this campaign send');
     }
 
-    const logData = {
+    // ── Send via Meta Cloud API ───────────────────────────────────────────
+    console.log(`[Campaign] Sending template "${templateName}" (${templateLanguage}) → ${phone}`);
+
+    const result = await ProviderFactory.sendTemplateMessage(
+      phone,
+      templateName,
+      parameters || [],
+      templateLanguage || 'en_US'
+    );
+
+    // ── Log result ────────────────────────────────────────────────────────
+    if (result.success) {
+      console.log(`[Campaign] ✓ Sent → ${phone} | Meta ID: ${result.metaMessageId}`);
+    } else {
+      console.error(`[Campaign] ✗ Failed → ${phone} | Error: ${result.error}`);
+    }
+
+    const logEntry = {
       campaignId,
       contactId,
       phone,
-      message: message || `[Template: ${templateName}]`,
-      provider: result.provider || 'meta',
+      message: previewMessage || `[Meta Template: ${templateName}]`,
+      provider: 'meta',
       status: result.success ? 'sent' : 'failed',
-      sentAt: result.sentAt || new Date(),
+      sentAt: result.sentAt || (result.success ? new Date() : null),
       failureReason: result.error || null,
     };
 
     if (result.metaMessageId) {
-      logData.metaMessageId = result.metaMessageId;
+      logEntry.metaMessageId = result.metaMessageId;
     }
 
-    await MessageLog.create(logData);
+    await MessageLog.create(logEntry);
 
-    return {
-      success: result.success,
-      error: result.error || null,
-      messageId: result.metaMessageId,
-    };
+    return { success: result.success, error: result.error || null };
   } catch (error) {
-    console.error(`Error sending message to ${phone}:`, error.message);
+    console.error(`[Campaign] Exception sending to ${phone}:`, error.message);
 
     await MessageLog.create({
       campaignId,
       contactId,
       phone,
-      message: message || `[Template: ${templateName}]`,
+      message: previewMessage || `[Meta Template: ${templateName || 'unknown'}]`,
       provider: 'meta',
       status: 'failed',
       failureReason: error.message,
     });
 
-    return {
-      success: false,
-      error: error.message,
-    };
+    return { success: false, error: error.message };
   }
 };
 
 /**
- * Process campaign with concurrency control
- * @param {Object} campaign - Campaign document
- * @param {Object} template - Template document
- * @param {Array} contacts - Array of contact documents
- * @returns {Promise<void>}
+ * Process a campaign: prepare all message items and send with concurrency control.
+ * Reads metaTemplateName and metaTemplateLanguage from the campaign document.
+ * @param {Object} campaign - Campaign Mongoose document
+ * @param {Object|null} template - Local Template document (optional, for text preview only)
+ * @param {Array} contacts - Array of Contact documents
  */
 const processCampaignWithQueue = async (campaign, template, contacts) => {
   const concurrency = parseInt(process.env.CAMPAIGN_CONCURRENCY || '5', 10);
-  const isMeta = (process.env.WHATSAPP_PROVIDER || 'meta').toLowerCase() === 'meta';
 
-  // Prepare items for sending
-  const items = contacts.map((contact) => {
-    const item = {
-      phone: contact.phone,
-      message: template ? ProviderFactory.replaceVariables(template.message, contact) : '',
-      contactId: contact._id,
-      campaignId: campaign._id,
-    };
+  // ── Validate Meta template is set ────────────────────────────────────────
+  if (!campaign.metaTemplateName) {
+    const errMsg = `Campaign "${campaign.campaignName}" has no Meta template selected. Cannot send.`;
+    console.error(`[Campaign] ✗ ${errMsg}`);
+    campaign.status = 'failed';
+    await campaign.save();
+    throw new Error(errMsg);
+  }
 
-    // For Meta provider, use the selected template from the campaign (no hardcoding)
-    if (isMeta) {
-      const selectedTemplate = campaign.metaTemplateName || null;
-      if (selectedTemplate) {
-        item.templateName = selectedTemplate;
-        item.templateLanguage = campaign.metaTemplateLanguage || 'en_US';
-        item.parameters = [];
-      }
-    }
+  console.log(
+    `[Campaign] Starting: "${campaign.campaignName}" | ` +
+    `Template: "${campaign.metaTemplateName}" (${campaign.metaTemplateLanguage || 'en_US'}) | ` +
+    `Recipients: ${contacts.length} | Concurrency: ${concurrency}`
+  );
 
-    return item;
-  });
+  // ── Build send items ──────────────────────────────────────────────────────
+  const items = contacts.map((contact) => ({
+    phone: contact.phone,
+    contactId: contact._id,
+    campaignId: campaign._id,
+    templateName: campaign.metaTemplateName,
+    templateLanguage: campaign.metaTemplateLanguage || 'en_US',
+    parameters: [],
+    // Local template message used for log preview only (not sent to Meta)
+    previewMessage: template
+      ? `[Template: ${campaign.metaTemplateName}] → ${contact.name}`
+      : `[Template: ${campaign.metaTemplateName}]`,
+  }));
 
-  // Send with concurrency control
+  // ── Send ──────────────────────────────────────────────────────────────────
   const results = await sendWithConcurrency(items, concurrency);
 
-  // Update campaign with results
+  // ── Update campaign stats ─────────────────────────────────────────────────
   campaign.sentCount = results.sent;
   campaign.failedCount = results.failed;
   campaign.status = results.failed === contacts.length ? 'failed' : 'completed';
   await campaign.save();
+
+  console.log(
+    `[Campaign] Done: "${campaign.campaignName}" | ` +
+    `Sent: ${results.sent} | Failed: ${results.failed} | Status: ${campaign.status}`
+  );
+
+  if (results.errors.length > 0) {
+    console.error(`[Campaign] Errors:`, results.errors.slice(0, 5));
+  }
 
   return results;
 };

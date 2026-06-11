@@ -73,9 +73,15 @@ const testWhatsAppConnection = async (req, res) => {
     }
 
     // Prepare test message
-    const templateName = req.body?.templateName || 'hello_welcome';
-    const useTemplate = !!req.body?.templateName || !req.body?.message;
-    const message = req.body?.message || `Hello from WhatsApp Campaign Manager test - ${new Date().toISOString()}`;
+    const templateName = req.body?.templateName || null;
+    const useTemplate = !!templateName || !req.body?.message;
+    const message = req.body?.message || `WhatsApp API test - ${new Date().toISOString()}`;
+
+    if (useTemplate && !templateName) {
+      testResult.error = 'templateName is required in request body when not providing a message. Use an APPROVED Meta template name (e.g. your_approved_template).';
+      testResult.status = 'failed';
+      return res.status(400).json(testResult);
+    }
 
     let result;
     const requestPayload = {

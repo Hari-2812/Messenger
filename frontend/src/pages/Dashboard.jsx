@@ -86,7 +86,15 @@ const Dashboard = () => {
                 {stats.recentCampaigns.map((campaign) => (
                   <tr key={campaign._id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-3 px-4 font-medium">{campaign.campaignName}</td>
-                    <td className="py-3 px-4">{campaign.templateId?.title || '-'}</td>
+                    <td className="py-3 px-4">
+                      {campaign.metaTemplateName ? (
+                        <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">
+                          {campaign.metaTemplateName}
+                        </span>
+                      ) : (
+                        campaign.templateId?.title || '—'
+                      )}
+                    </td>
                     <td className="py-3 px-4">{campaign.totalContacts}</td>
                     <td className="py-3 px-4">{campaign.sentCount}</td>
                     <td className="py-3 px-4">

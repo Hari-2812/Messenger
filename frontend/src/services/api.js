@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: (import.meta.env.VITE_API_URL || '').replace(/\/+$/, ''),
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -66,7 +66,8 @@ export const logsAPI = {
 };
 
 export const metaAPI = {
-  getTemplates: () => API.get('/meta/templates'),
+  getTemplates: () => API.get('/meta/templates'),          // APPROVED only — Campaign dropdown
+  getAllTemplates: () => API.get('/meta/templates/all'),   // All statuses — Templates page
 };
 
 export default API;
