@@ -59,6 +59,14 @@ const sendMessage = async (phoneNumber, message, options = {}) => {
       },
     };
 
+    // ── PRE-CALL DIAGNOSTIC LOG ──────────────────────────────────────────────
+    console.log('[MetaProvider][sendMessage] ── PRE-CALL ──');
+    console.log('[MetaProvider][sendMessage] Phone Number ID :', phoneNumberId);
+    console.log('[MetaProvider][sendMessage] Recipient       :', formattedPhone, '(raw:', phoneNumber, ')');
+    console.log('[MetaProvider][sendMessage] Access Token    :', accessToken.substring(0, 20) + '...');
+    console.log('[MetaProvider][sendMessage] Full URL        :', url);
+    console.log('[MetaProvider][sendMessage] Payload         :', JSON.stringify(payload));
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -70,11 +78,18 @@ const sendMessage = async (phoneNumber, message, options = {}) => {
 
     if (!response.ok) {
       const errorData = await response.json();
+      // ── ERROR RESPONSE LOG ────────────────────────────────────────────────
+      console.error('[MetaProvider][sendMessage] ── META API ERROR ──');
+      console.error('[MetaProvider][sendMessage] HTTP Status  :', response.status);
+      console.error('[MetaProvider][sendMessage] Error Body   :', JSON.stringify(errorData));
       const errorMessage = errorData.error?.message || `HTTP ${response.status}`;
       throw new Error(`Meta API Error: ${errorMessage}`);
     }
 
     const data = await response.json();
+    // ── SUCCESS RESPONSE LOG ─────────────────────────────────────────────────
+    console.log('[MetaProvider][sendMessage] ── SUCCESS ──');
+    console.log('[MetaProvider][sendMessage] Meta Response:', JSON.stringify(data));
 
     return {
       success: true,
@@ -84,7 +99,9 @@ const sendMessage = async (phoneNumber, message, options = {}) => {
       sentAt: new Date(),
     };
   } catch (error) {
-    console.error('Meta WhatsApp API Error:', error.message);
+    // ── CATCH LOG ────────────────────────────────────────────────────────────
+    console.error('[MetaProvider][sendMessage] ── EXCEPTION ──');
+    console.error('[MetaProvider][sendMessage] Error       :', error.message);
     return {
       success: false,
       provider: 'meta',
@@ -139,6 +156,16 @@ const sendTemplateMessage = async (phoneNumber, templateName, parameters = [], l
       ];
     }
 
+    // ── PRE-CALL DIAGNOSTIC LOG ──────────────────────────────────────────────
+    console.log('[MetaProvider][sendTemplateMessage] ── PRE-CALL ──');
+    console.log('[MetaProvider][sendTemplateMessage] Phone Number ID :', phoneNumberId);
+    console.log('[MetaProvider][sendTemplateMessage] Recipient       :', formattedPhone, '(raw:', phoneNumber, ')');
+    console.log('[MetaProvider][sendTemplateMessage] Template Name   :', templateName);
+    console.log('[MetaProvider][sendTemplateMessage] Language Code   :', languageCode);
+    console.log('[MetaProvider][sendTemplateMessage] Access Token    :', accessToken.substring(0, 20) + '...');
+    console.log('[MetaProvider][sendTemplateMessage] Full URL        :', url);
+    console.log('[MetaProvider][sendTemplateMessage] Full Payload    :', JSON.stringify(payload));
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -150,11 +177,18 @@ const sendTemplateMessage = async (phoneNumber, templateName, parameters = [], l
 
     if (!response.ok) {
       const errorData = await response.json();
+      // ── ERROR RESPONSE LOG ────────────────────────────────────────────────
+      console.error('[MetaProvider][sendTemplateMessage] ── META API ERROR ──');
+      console.error('[MetaProvider][sendTemplateMessage] HTTP Status  :', response.status);
+      console.error('[MetaProvider][sendTemplateMessage] Error Body   :', JSON.stringify(errorData));
       const errorMessage = errorData.error?.message || `HTTP ${response.status}`;
       throw new Error(`Meta API Error: ${errorMessage}`);
     }
 
     const data = await response.json();
+    // ── SUCCESS RESPONSE LOG ─────────────────────────────────────────────────
+    console.log('[MetaProvider][sendTemplateMessage] ── SUCCESS ──');
+    console.log('[MetaProvider][sendTemplateMessage] Meta Response:', JSON.stringify(data));
 
     return {
       success: true,
@@ -164,7 +198,9 @@ const sendTemplateMessage = async (phoneNumber, templateName, parameters = [], l
       sentAt: new Date(),
     };
   } catch (error) {
-    console.error('Meta Template API Error:', error.message);
+    // ── CATCH LOG ────────────────────────────────────────────────────────────
+    console.error('[MetaProvider][sendTemplateMessage] ── EXCEPTION ──');
+    console.error('[MetaProvider][sendTemplateMessage] Error       :', error.message);
     return {
       success: false,
       provider: 'meta',

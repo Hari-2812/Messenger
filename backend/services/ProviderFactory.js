@@ -29,7 +29,12 @@ const sendMessage = async (phone, message) => {
  * @returns {Promise<Object>} - { success, metaMessageId, provider, status, sentAt, error }
  */
 const sendTemplateMessage = async (phone, templateName, parameters = [], languageCode = 'en_US') => {
-  console.log(`[Meta] sendTemplateMessage → ${phone} | template: ${templateName} | lang: ${languageCode}`);
+  // ── PROVIDER ENTRY LOG ───────────────────────────────────────────────────────
+  console.log('[ProviderFactory] ── DELEGATING SEND ──');
+  console.log('[ProviderFactory] Provider     : Meta WhatsApp Cloud API');
+  console.log('[ProviderFactory] Delegating to: MetaProvider.sendTemplateMessage');
+  console.log('[ProviderFactory] Template     :', templateName, '| Lang:', languageCode);
+  console.log('[ProviderFactory] Recipient    :', phone);
   return MetaProvider.sendTemplateMessage(phone, templateName, parameters, languageCode);
 };
 

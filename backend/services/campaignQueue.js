@@ -74,11 +74,17 @@ const sendSingleMessage = async (item) => {
       templateLanguage || 'en_US'
     );
 
-    // ── Log result ────────────────────────────────────────────────────────
+    // ── PER-RECIPIENT RESULT LOG ───────────────────────────────────────────────
     if (result.success) {
-      console.log(`[Campaign] ✓ Sent → ${phone} | Meta ID: ${result.metaMessageId}`);
+      console.log('[CampaignQueue] ── SEND RESULT: SUCCESS ──');
+      console.log('[CampaignQueue] Recipient  :', phone);
+      console.log('[CampaignQueue] Status     : sent');
+      console.log('[CampaignQueue] Meta ID    :', result.metaMessageId);
     } else {
-      console.error(`[Campaign] ✗ Failed → ${phone} | Error: ${result.error}`);
+      console.error('[CampaignQueue] ── SEND RESULT: FAILED ──');
+      console.error('[CampaignQueue] Recipient  :', phone);
+      console.error('[CampaignQueue] Status     : failed');
+      console.error('[CampaignQueue] Error      :', result.error);
     }
 
     const logEntry = {
@@ -135,11 +141,15 @@ const processCampaignWithQueue = async (campaign, template, contacts) => {
     throw new Error(errMsg);
   }
 
-  console.log(
-    `[Campaign] Starting: "${campaign.campaignName}" | ` +
-    `Template: "${campaign.metaTemplateName}" (${campaign.metaTemplateLanguage || 'en_US'}) | ` +
-    `Recipients: ${contacts.length} | Concurrency: ${concurrency}`
-  );
+  // ── CAMPAIGN TRIGGER LOG ───────────────────────────────────────────────────
+  console.log('[CampaignQueue] ── CAMPAIGN TRIGGERED ──');
+  console.log('[CampaignQueue] Campaign ID   :', campaign._id.toString());
+  console.log('[CampaignQueue] Campaign Name :', campaign.campaignName);
+  console.log('[CampaignQueue] Template Name :', campaign.metaTemplateName);
+  console.log('[CampaignQueue] Language Code :', campaign.metaTemplateLanguage || 'en_US');
+  console.log('[CampaignQueue] Recipients    :', contacts.length);
+  console.log('[CampaignQueue] Concurrency   :', concurrency);
+  console.log('[CampaignQueue] Phone Numbers :', contacts.map(c => c.phone).join(', '));
 
   // ── Build send items ──────────────────────────────────────────────────────
   const items = contacts.map((contact) => ({
