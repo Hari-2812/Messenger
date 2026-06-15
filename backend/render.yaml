@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: whatsapp-campaign-backend
+    env: node
+    region: oregon  # Change to match your Render region
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: MONGODB_URI
+        sync: false  # Set in Render dashboard — never commit to git
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: ALLOWED_ORIGINS
+        sync: false  # e.g. https://your-app.vercel.app
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_BUSINESS_ACCOUNT_ID
+        sync: false
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+      - key: WHATSAPP_WEBHOOK_VERIFY_TOKEN
+        sync: false
+      - key: CAMPAIGN_CONCURRENCY
+        value: "5"
+      - key: DELIVERY_TIMEOUT_MINUTES
+        value: "30"

@@ -13,7 +13,7 @@ const messageLogSchema = new mongoose.Schema(
       default: 'pending',
     },
     // Meta WhatsApp message ID returned from the Cloud API (used for delivery tracking)
-    metaMessageId: { type: String, default: null, index: true },
+    metaMessageId: { type: String, default: null },
     // Only 'meta' is valid in production
     provider: { type: String, default: 'meta', enum: ['meta'] },
     sentAt: { type: Date, default: null },
@@ -25,8 +25,10 @@ const messageLogSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Index for fast delivery status lookups via webhook
+// Indexes for fast delivery status lookups via webhook
 messageLogSchema.index({ metaMessageId: 1 });
 messageLogSchema.index({ campaignId: 1, status: 1 });
+messageLogSchema.index({ campaignId: 1, createdAt: -1 }); // Paginated log queries
+messageLogSchema.index({ status: 1, sentAt: 1 });         // Delivery timeout job
 
 module.exports = mongoose.model('MessageLog', messageLogSchema);

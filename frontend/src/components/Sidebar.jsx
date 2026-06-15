@@ -44,7 +44,7 @@ const Sidebar = () => {
       </nav>
 
       <div className="p-4 border-t border-gray-200">
-        <p className="text-xs text-gray-400 text-center">Mock Provider v1.0</p>
+        <p className="text-xs text-gray-400 text-center">Meta WhatsApp Cloud API</p>
       </div>
     </aside>
   );

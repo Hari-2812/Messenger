@@ -1,24 +1,75 @@
 /**
  * Meta WhatsApp Cloud API Provider
- * Handles all communication with Meta's WhatsApp Business API
+ * Handles all communication with Meta's WhatsApp Business API.
+ *
+ * Security fixes:
+ *  - Webhook signature uses crypto.timingSafeEqual (timing-attack safe)
+ *  - Access token never logged
+ *  - 30s AbortController timeout on all fetch calls
+ *  - Exponential backoff retry for 429 / 5xx responses
  */
 
 const crypto = require('crypto');
+const { GRAPH_API_VERSION, GRAPH_API_URL } = require('../config/meta');
 
-const GRAPH_API_VERSION = 'v23.0';
-const GRAPH_API_URL = 'https://graph.facebook.com';
+// ── Retry configuration ───────────────────────────────────────────────────────
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = [1000, 2000, 4000]; // exponential backoff
+const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
 
 /**
- * Verify webhook signature from Meta
- * @param {string} payload - Raw request body
+ * Sleep helper for retry delays
+ */
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Fetch with timeout and retry logic
+ */
+const fetchWithRetry = async (url, options, label = 'MetaProvider') => {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeout);
+
+      // Retry on transient errors
+      if (!response.ok && RETRYABLE_STATUSES.has(response.status) && attempt < MAX_RETRIES) {
+        const delay = RETRY_DELAY_MS[attempt];
+        console.warn(
+          `[${label}] HTTP ${response.status} — retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`
+        );
+        await sleep(delay);
+        continue;
+      }
+
+      return response;
+    } catch (error) {
+      clearTimeout(timeout);
+      if (error.name === 'AbortError') {
+        throw new Error(`[${label}] Request timed out after 30s`);
+      }
+      if (attempt < MAX_RETRIES) {
+        const delay = RETRY_DELAY_MS[attempt];
+        console.warn(`[${label}] Network error — retrying in ${delay}ms: ${error.message}`);
+        await sleep(delay);
+        continue;
+      }
+      throw error;
+    }
+  }
+};
+
+/**
+ * Verify webhook signature from Meta — timing-attack safe
+ * @param {string} payload - Raw request body string
  * @param {string} signature - X-Hub-Signature-256 header value
  * @param {string} appSecret - WhatsApp App Secret
- * @returns {boolean} - True if signature is valid
+ * @returns {boolean}
  */
 const verifyWebhookSignature = (payload, signature, appSecret) => {
-  if (!appSecret || !signature) {
-    return false;
-  }
+  if (!appSecret || !signature) return false;
 
   const hash = crypto
     .createHmac('sha256', appSecret)
@@ -26,17 +77,25 @@ const verifyWebhookSignature = (payload, signature, appSecret) => {
     .digest('hex');
 
   const expectedSignature = `sha256=${hash}`;
-  return signature === expectedSignature;
+
+  // Timing-safe comparison — prevents timing attacks
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(signature),
+      Buffer.from(expectedSignature)
+    );
+  } catch {
+    // Lengths differ — definitely invalid
+    return false;
+  }
 };
 
 /**
- * Send message via Meta WhatsApp Cloud API
- * @param {string} phoneNumber - Contact phone number (with country code, e.g., +1234567890)
- * @param {string} message - Message text
- * @param {Object} options - Additional options like templateName
- * @returns {Promise<Object>} - Result with messageId
+ * Send a plain text message via Meta WhatsApp Cloud API
+ * NOTE: Meta only allows template messages for business-initiated conversations.
+ * This should only be used for testing or replies.
  */
-const sendMessage = async (phoneNumber, message, options = {}) => {
+const sendMessage = async (phoneNumber, message) => {
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
@@ -44,52 +103,41 @@ const sendMessage = async (phoneNumber, message, options = {}) => {
     throw new Error('Meta WhatsApp API credentials are not configured');
   }
 
+  const formattedPhone = phoneNumber.replace(/\D/g, '').replace(/^\+/, '');
+  const url = `${GRAPH_API_URL}/${GRAPH_API_VERSION}/${phoneNumberId}/messages`;
+
+  const payload = {
+    messaging_product: 'whatsapp',
+    to: formattedPhone,
+    type: 'text',
+    text: { body: message },
+  };
+
+  console.log(`[MetaProvider] sendMessage → ${formattedPhone} (text)`);
+
   try {
-    // Format phone number: remove any non-numeric characters except +
-    const formattedPhone = phoneNumber.replace(/\D/g, '').replace(/^\+/, '');
-
-    const url = `${GRAPH_API_URL}/${GRAPH_API_VERSION}/${phoneNumberId}/messages`;
-
-    const payload = {
-      messaging_product: 'whatsapp',
-      to: formattedPhone,
-      type: 'text',
-      text: {
-        body: message,
+    const response = await fetchWithRetry(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
       },
-    };
-
-    // ── PRE-CALL DIAGNOSTIC LOG ──────────────────────────────────────────────
-    console.log('[MetaProvider][sendMessage] ── PRE-CALL ──');
-    console.log('[MetaProvider][sendMessage] Phone Number ID :', phoneNumberId);
-    console.log('[MetaProvider][sendMessage] Recipient       :', formattedPhone, '(raw:', phoneNumber, ')');
-    console.log('[MetaProvider][sendMessage] Access Token    :', accessToken.substring(0, 20) + '...');
-    console.log('[MetaProvider][sendMessage] Full URL        :', url);
-    console.log('[MetaProvider][sendMessage] Payload         :', JSON.stringify(payload));
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify(payload),
-    });
+      'MetaProvider.sendMessage'
+    );
 
     if (!response.ok) {
       const errorData = await response.json();
-      // ── ERROR RESPONSE LOG ────────────────────────────────────────────────
-      console.error('[MetaProvider][sendMessage] ── META API ERROR ──');
-      console.error('[MetaProvider][sendMessage] HTTP Status  :', response.status);
-      console.error('[MetaProvider][sendMessage] Error Body   :', JSON.stringify(errorData));
       const errorMessage = errorData.error?.message || `HTTP ${response.status}`;
+      console.error(`[MetaProvider] sendMessage error: ${errorMessage}`);
       throw new Error(`Meta API Error: ${errorMessage}`);
     }
 
     const data = await response.json();
-    // ── SUCCESS RESPONSE LOG ─────────────────────────────────────────────────
-    console.log('[MetaProvider][sendMessage] ── SUCCESS ──');
-    console.log('[MetaProvider][sendMessage] Meta Response:', JSON.stringify(data));
+    console.log(`[MetaProvider] sendMessage ✓ → meta_id: ${data.messages?.[0]?.id}`);
 
     return {
       success: true,
@@ -99,27 +147,24 @@ const sendMessage = async (phoneNumber, message, options = {}) => {
       sentAt: new Date(),
     };
   } catch (error) {
-    // ── CATCH LOG ────────────────────────────────────────────────────────────
-    console.error('[MetaProvider][sendMessage] ── EXCEPTION ──');
-    console.error('[MetaProvider][sendMessage] Error       :', error.message);
-    return {
-      success: false,
-      provider: 'meta',
-      status: 'failed',
-      error: error.message,
-    };
+    console.error(`[MetaProvider] sendMessage ✗ → ${error.message}`);
+    return { success: false, provider: 'meta', status: 'failed', error: error.message };
   }
 };
 
 /**
- * Send template message via Meta WhatsApp Cloud API
- * @param {string} phoneNumber - Contact phone number
- * @param {string} templateName - Template name in Meta
- * @param {Array} parameters - Template parameters for variable replacement
- * @param {string} languageCode - Template language code (e.g. 'en_US', 'hi')
- * @returns {Promise<Object>} - Result with messageId
+ * Send a WhatsApp template message via Meta Cloud API
+ * @param {string} phoneNumber - Recipient phone number (with or without +)
+ * @param {string} templateName - Approved Meta template name
+ * @param {Array} parameters - Body variable values
+ * @param {string} languageCode - Template language code (e.g. 'en_US')
  */
-const sendTemplateMessage = async (phoneNumber, templateName, parameters = [], languageCode = 'en_US') => {
+const sendTemplateMessage = async (
+  phoneNumber,
+  templateName,
+  parameters = [],
+  languageCode = 'en_US'
+) => {
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
@@ -127,94 +172,74 @@ const sendTemplateMessage = async (phoneNumber, templateName, parameters = [], l
     throw new Error('Meta WhatsApp API credentials are not configured');
   }
 
+  const formattedPhone = phoneNumber.replace(/\D/g, '').replace(/^\+/, '');
+  const url = `${GRAPH_API_URL}/${GRAPH_API_VERSION}/${phoneNumberId}/messages`;
+
+  const payload = {
+    messaging_product: 'whatsapp',
+    to: formattedPhone,
+    type: 'template',
+    template: {
+      name: templateName,
+      language: { code: languageCode },
+    },
+  };
+
+  if (parameters && parameters.length > 0) {
+    payload.template.components = [
+      {
+        type: 'body',
+        parameters: parameters.map((param) => ({ type: 'text', text: String(param) })),
+      },
+    ];
+  }
+
+  console.log(
+    `[MetaProvider] sendTemplateMessage → ${formattedPhone} | template: "${templateName}" (${languageCode})`
+  );
+
   try {
-    const formattedPhone = phoneNumber.replace(/\D/g, '').replace(/^\+/, '');
-
-    const url = `${GRAPH_API_URL}/${GRAPH_API_VERSION}/${phoneNumberId}/messages`;
-
-    const payload = {
-      messaging_product: 'whatsapp',
-      to: formattedPhone,
-      type: 'template',
-      template: {
-        name: templateName,
-        language: {
-          code: languageCode,
+    const response = await fetchWithRetry(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
         },
+        body: JSON.stringify(payload),
       },
-    };
-
-    if (parameters && parameters.length > 0) {
-      payload.template.components = [
-        {
-          type: 'body',
-          parameters: parameters.map((param) => ({
-            type: 'text',
-            text: param,
-          })),
-        },
-      ];
-    }
-
-    // ── PRE-CALL DIAGNOSTIC LOG ──────────────────────────────────────────────
-    console.log('[MetaProvider][sendTemplateMessage] ── PRE-CALL ──');
-    console.log('[MetaProvider][sendTemplateMessage] Phone Number ID :', phoneNumberId);
-    console.log('[MetaProvider][sendTemplateMessage] Recipient       :', formattedPhone, '(raw:', phoneNumber, ')');
-    console.log('[MetaProvider][sendTemplateMessage] Template Name   :', templateName);
-    console.log('[MetaProvider][sendTemplateMessage] Language Code   :', languageCode);
-    console.log('[MetaProvider][sendTemplateMessage] Access Token    :', accessToken.substring(0, 20) + '...');
-    console.log('[MetaProvider][sendTemplateMessage] Full URL        :', url);
-    console.log('[MetaProvider][sendTemplateMessage] Full Payload    :', JSON.stringify(payload));
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify(payload),
-    });
+      'MetaProvider.sendTemplateMessage'
+    );
 
     if (!response.ok) {
       const errorData = await response.json();
-      // ── ERROR RESPONSE LOG ────────────────────────────────────────────────
-      console.error('[MetaProvider][sendTemplateMessage] ── META API ERROR ──');
-      console.error('[MetaProvider][sendTemplateMessage] HTTP Status  :', response.status);
-      console.error('[MetaProvider][sendTemplateMessage] Error Body   :', JSON.stringify(errorData));
       const errorMessage = errorData.error?.message || `HTTP ${response.status}`;
+      console.error(
+        `[MetaProvider] sendTemplateMessage error: ${errorMessage} | phone: ${formattedPhone}`
+      );
       throw new Error(`Meta API Error: ${errorMessage}`);
     }
 
     const data = await response.json();
-    // ── SUCCESS RESPONSE LOG ─────────────────────────────────────────────────
-    console.log('[MetaProvider][sendTemplateMessage] ── SUCCESS ──');
-    console.log('[MetaProvider][sendTemplateMessage] Meta Response:', JSON.stringify(data));
+    const metaId = data.messages?.[0]?.id;
+    console.log(`[MetaProvider] sendTemplateMessage ✓ → meta_id: ${metaId}`);
 
     return {
       success: true,
-      metaMessageId: data.messages[0].id,
+      metaMessageId: metaId,
       provider: 'meta',
       status: 'sent',
       sentAt: new Date(),
     };
   } catch (error) {
-    // ── CATCH LOG ────────────────────────────────────────────────────────────
-    console.error('[MetaProvider][sendTemplateMessage] ── EXCEPTION ──');
-    console.error('[MetaProvider][sendTemplateMessage] Error       :', error.message);
-    return {
-      success: false,
-      provider: 'meta',
-      status: 'failed',
-      error: error.message,
-    };
+    console.error(`[MetaProvider] sendTemplateMessage ✗ → ${error.message}`);
+    return { success: false, provider: 'meta', status: 'failed', error: error.message };
   }
 };
 
 /**
- * Replace template variables with contact data
- * @param {string} template - Template text with {{variable}} placeholders
- * @param {Object} contact - Contact object
- * @returns {string} - Template with replaced variables
+ * Replace template variables with contact data (local preview only)
  */
 const replaceVariables = (template, contact) => {
   return template

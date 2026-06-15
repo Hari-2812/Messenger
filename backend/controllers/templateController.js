@@ -1,65 +1,72 @@
 const Template = require('../models/Template');
 
+// @desc    Get templates (local CRM templates only, or all by source)
+// @route   GET /api/templates?source=local|all
 const getTemplates = async (req, res) => {
-  try {
-    const templates = await Template.find().sort({ createdAt: -1 });
-    res.json(templates);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
+  const source = req.query.source || 'local';
+  const filter = source === 'all' ? {} : { source: 'local' };
+
+  const templates = await Template.find(filter).sort({ createdAt: -1 });
+  res.json(templates);
 };
 
+// @desc    Create local CRM template
+// @route   POST /api/templates
 const createTemplate = async (req, res) => {
-  try {
-    const { title, message } = req.body;
+  const { title, message } = req.body;
 
-    if (!title || !message) {
-      return res.status(400).json({ message: 'Title and message are required' });
-    }
-
-    const template = await Template.create({ title, message });
-    res.status(201).json(template);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  if (!title?.trim() || !message?.trim()) {
+    return res.status(400).json({ message: 'Title and message are required' });
   }
+
+  const template = await Template.create({
+    title: title.trim(),
+    message: message.trim(),
+    source: 'local', // Always 'local' when created via CRM
+  });
+
+  res.status(201).json(template);
 };
 
+// @desc    Update local CRM template
+// @route   PUT /api/templates/:id
 const updateTemplate = async (req, res) => {
-  try {
-    const template = await Template.findById(req.params.id);
+  const template = await Template.findById(req.params.id);
 
-    if (!template) {
-      return res.status(404).json({ message: 'Template not found' });
-    }
-
-    template.title = req.body.title || template.title;
-    template.message = req.body.message || template.message;
-
-    await template.save();
-    res.json(template);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  if (!template) {
+    return res.status(404).json({ message: 'Template not found' });
   }
+
+  if (template.source !== 'local') {
+    return res.status(400).json({
+      message: 'Meta-synced templates cannot be edited here. Edit them in Meta Business Manager.',
+    });
+  }
+
+  template.title = req.body.title?.trim() || template.title;
+  template.message = req.body.message?.trim() || template.message;
+
+  await template.save();
+  res.json(template);
 };
 
+// @desc    Delete local CRM template
+// @route   DELETE /api/templates/:id
 const deleteTemplate = async (req, res) => {
-  try {
-    const template = await Template.findById(req.params.id);
+  const template = await Template.findById(req.params.id);
 
-    if (!template) {
-      return res.status(404).json({ message: 'Template not found' });
-    }
-
-    await template.deleteOne();
-    res.json({ message: 'Template deleted' });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  if (!template) {
+    return res.status(404).json({ message: 'Template not found' });
   }
+
+  if (template.source !== 'local') {
+    return res.status(400).json({
+      message: 'Meta-synced templates cannot be deleted here. Manage them in Meta Business Manager.',
+    });
+  }
+
+  await template.deleteOne();
+  res.json({ message: 'Template deleted successfully' });
 };
 
-module.exports = {
-  getTemplates,
-  createTemplate,
-  updateTemplate,
-  deleteTemplate,
-};
+module.exports = { getTemplates, createTemplate, updateTemplate, deleteTemplate };

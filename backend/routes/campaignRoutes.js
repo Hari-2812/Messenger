@@ -4,6 +4,7 @@ const {
   createCampaign,
   previewCampaign,
   sendCampaign,
+  getCampaignById,
 } = require('../controllers/campaignController');
 const { protect } = require('../middleware/auth');
 
@@ -13,6 +14,7 @@ router.use(protect);
 
 router.route('/').get(getCampaigns).post(createCampaign);
 router.post('/preview', previewCampaign);
+router.get('/:id', getCampaignById);
 router.post('/:id/send', sendCampaign);
 
 module.exports = router;

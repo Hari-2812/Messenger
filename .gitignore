@@ -1,6 +1,32 @@
+# Dependencies
 node_modules/
+
+# Environment variables — NEVER commit these
 .env
+.env.local
+.env.production
+
+# Uploaded files — may contain PII (phone numbers, names from CSV imports)
 uploads/
+backend/uploads/
+
+# Build output
 dist/
+build/
+
+# Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
 .DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Render / deployment
+.render/

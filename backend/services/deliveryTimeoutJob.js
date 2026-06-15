@@ -2,71 +2,86 @@
  * Delivery Timeout Job
  *
  * Runs every 60 seconds. Finds MessageLog records that have been in
- * "sent" status for longer than DELIVERY_TIMEOUT_MINUTES without receiving
- * a webhook delivery confirmation from Meta, then marks them as "failed".
+ * "sent" status longer than DELIVERY_TIMEOUT_MINUTES without a delivery
+ * confirmation from Meta, then marks them as "failed".
+ *
+ * Also updates Campaign.failedCount for affected campaigns.
  *
  * WHY THIS EXISTS:
- * Meta accepts messages to non-approved / unregistered numbers and returns
- * a 200 OK with a message ID, but silently drops the message — no delivery
- * webhook ever fires. Without this job, those messages stay "sent" forever,
- * giving users a false impression of success.
+ * Meta accepts messages to non-approved/unregistered numbers with a 200 OK
+ * but silently drops them — no delivery webhook ever fires. Without this job,
+ * those messages stay "sent" forever, giving users false impressions of success.
  *
- * No external packages required — uses native setInterval.
+ * Default: 30 minutes (configurable via DELIVERY_TIMEOUT_MINUTES env var).
  */
 
 const MessageLog = require('../models/MessageLog');
+const Campaign = require('../models/Campaign');
 
-// How long (minutes) before a "sent" message with no delivery confirmation
-// is considered undeliverable. Can be overridden via env var.
 const DELIVERY_TIMEOUT_MINUTES = parseInt(
-  process.env.DELIVERY_TIMEOUT_MINUTES || '5',
+  process.env.DELIVERY_TIMEOUT_MINUTES || '30', // Default: 30min (was 5min — too aggressive)
   10
 );
 
-// How often the job checks (milliseconds). Default: every 60 seconds.
-const CHECK_INTERVAL_MS = 60 * 1000;
+const CHECK_INTERVAL_MS = 60 * 1000; // Check every 60 seconds
 
 let jobTimer = null;
 
-/**
- * Run one pass of the timeout check.
- * Exported separately so it can be called/tested directly.
- */
 const runTimeoutCheck = async () => {
   try {
     const cutoff = new Date(Date.now() - DELIVERY_TIMEOUT_MINUTES * 60 * 1000);
 
-    // Find all "sent" messages where sentAt is older than the cutoff
-    // AND status is still "sent" (not yet delivered/read/failed by webhook)
-    const result = await MessageLog.updateMany(
-      {
-        status: 'sent',
-        sentAt: { $lt: cutoff, $ne: null },
-      },
+    // Find all "sent" messages older than the cutoff
+    const staleLogs = await MessageLog.find({
+      status: 'sent',
+      sentAt: { $lt: cutoff, $ne: null },
+    }).select('_id campaignId');
+
+    if (staleLogs.length === 0) return;
+
+    const staleIds = staleLogs.map((l) => l._id);
+
+    // Mark all stale messages as failed
+    await MessageLog.updateMany(
+      { _id: { $in: staleIds } },
       {
         $set: {
           status: 'failed',
-          failureReason: `No delivery confirmation received from Meta within ${DELIVERY_TIMEOUT_MINUTES} minutes`,
+          failureReason: `No delivery confirmation from Meta within ${DELIVERY_TIMEOUT_MINUTES} minutes`,
         },
       }
     );
 
-    if (result.modifiedCount > 0) {
+    console.log(
+      `[DeliveryTimeout] Marked ${staleLogs.length} message(s) as failed` +
+      ` (no delivery after ${DELIVERY_TIMEOUT_MINUTES}min)`
+    );
+
+    // Update Campaign.failedCount for each affected campaign
+    const campaignCounts = staleLogs.reduce((acc, log) => {
+      if (log.campaignId) {
+        const key = log.campaignId.toString();
+        acc[key] = (acc[key] || 0) + 1;
+      }
+      return acc;
+    }, {});
+
+    const campaignUpdates = Object.entries(campaignCounts).map(([campaignId, count]) =>
+      Campaign.findByIdAndUpdate(campaignId, { $inc: { failedCount: count } })
+    );
+
+    await Promise.all(campaignUpdates);
+
+    if (Object.keys(campaignCounts).length > 0) {
       console.log(
-        `[DeliveryTimeout] Marked ${result.modifiedCount} message(s) as failed` +
-        ` — no delivery confirmation after ${DELIVERY_TIMEOUT_MINUTES}m`
+        `[DeliveryTimeout] Updated failedCount for ${Object.keys(campaignCounts).length} campaign(s)`
       );
     }
   } catch (error) {
-    // Log but never crash the process — this is a background job
     console.error('[DeliveryTimeout] Error during timeout check:', error.message);
   }
 };
 
-/**
- * Start the delivery timeout job.
- * Call this once after the database connection is established.
- */
 const startDeliveryTimeoutJob = () => {
   if (jobTimer) {
     console.warn('[DeliveryTimeout] Job already running — skipping duplicate start');
@@ -74,24 +89,16 @@ const startDeliveryTimeoutJob = () => {
   }
 
   console.log(
-    `[DeliveryTimeout] Job started — checking every 60s,` +
-    ` timeout threshold: ${DELIVERY_TIMEOUT_MINUTES} minutes`
+    `[DeliveryTimeout] Job started — checking every 60s, timeout threshold: ${DELIVERY_TIMEOUT_MINUTES} minutes`
   );
 
-  // Run immediately on startup to catch any leftover stale messages
-  // from a previous server session (e.g. Render restart)
+  // Run immediately on startup to catch leftover stale messages
   runTimeoutCheck();
 
-  // Then repeat on schedule
   jobTimer = setInterval(runTimeoutCheck, CHECK_INTERVAL_MS);
-
-  // Prevent the interval from blocking graceful shutdown
   if (jobTimer.unref) jobTimer.unref();
 };
 
-/**
- * Stop the job (used for testing / graceful shutdown).
- */
 const stopDeliveryTimeoutJob = () => {
   if (jobTimer) {
     clearInterval(jobTimer);

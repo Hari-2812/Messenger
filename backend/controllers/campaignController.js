@@ -5,132 +5,154 @@ const MessageLog = require('../models/MessageLog');
 const ProviderFactory = require('../services/ProviderFactory');
 const campaignQueue = require('../services/campaignQueue');
 
+// @desc    Get all campaigns (paginated)
+// @route   GET /api/campaigns
 const getCampaigns = async (req, res) => {
-  try {
-    const campaigns = await Campaign.find()
-      .populate('templateId', 'title message')
-      .sort({ createdAt: -1 });
-    res.json(campaigns);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(50, parseInt(req.query.limit) || 20);
+  const skip = (page - 1) * limit;
+
+  const [campaigns, total] = await Promise.all([
+    Campaign.find()
+      .populate('templateId', 'title source')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Campaign.countDocuments(),
+  ]);
+
+  res.json({ campaigns, total, page, pages: Math.ceil(total / limit) });
 };
 
+// @desc    Create a new campaign
+// @route   POST /api/campaigns
 const createCampaign = async (req, res) => {
-  try {
-    const { campaignName, templateId, metaTemplateName, metaTemplateLanguage, contactIds, send } = req.body;
+  const { campaignName, templateId, metaTemplateName, metaTemplateLanguage, contactIds, send } = req.body;
 
-    // At least one of templateId (local) or metaTemplateName (Meta) is required
-    if (!campaignName || (!templateId && !metaTemplateName) || !contactIds || contactIds.length === 0) {
-      return res.status(400).json({
-        message: 'Campaign name, a Meta template (or local template), and at least one contact are required',
-      });
-    }
-
-    // If a local template ID was provided, verify it exists
-    let template = null;
-    if (templateId) {
-      template = await Template.findById(templateId);
-      if (!template) {
-        return res.status(404).json({ message: 'Template not found' });
-      }
-    }
-
-    const contacts = await Contact.find({ _id: { $in: contactIds } });
-    if (contacts.length === 0) {
-      return res.status(400).json({ message: 'No valid contacts found' });
-    }
-
-    const campaign = await Campaign.create({
-      campaignName,
-      templateId: templateId || null,
-      metaTemplateName: metaTemplateName || null,
-      metaTemplateLanguage: metaTemplateLanguage || 'en_US',
-      contactIds: contacts.map((c) => c._id),
-      totalContacts: contacts.length,
-      status: send ? 'sending' : 'draft',
+  if (!campaignName || !metaTemplateName || !contactIds || contactIds.length === 0) {
+    return res.status(400).json({
+      message: 'Campaign name, a Meta template name, and at least one contact are required',
     });
-
-    if (send) {
-      await processCampaign(campaign, template, contacts);
-      const updated = await Campaign.findById(campaign._id).populate('templateId', 'title message');
-      return res.status(201).json(updated);
-    }
-
-    const populated = await Campaign.findById(campaign._id).populate('templateId', 'title message');
-    res.status(201).json(populated);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
   }
-};
 
-const processCampaign = async (campaign, template, contacts) => {
-  await campaignQueue.processCampaignWithQueue(campaign, template, contacts);
-};
-
-// Preview messages without sending
-const previewCampaign = async (req, res) => {
-  try {
-    const { templateId, metaTemplateName, contactIds } = req.body;
-
-    // For Meta templates, return a simple preview showing which template will be used
-    if (metaTemplateName && !templateId) {
-      const contacts = await Contact.find({ _id: { $in: contactIds } });
-      const previews = contacts.map((contact) => ({
-        contactId: contact._id,
-        name: contact.name,
-        phone: contact.phone,
-        message: `[Meta Template: ${metaTemplateName}] will be sent to this contact`,
-      }));
-      return res.json(previews);
-    }
-
-    const template = await Template.findById(templateId);
+  // Validate local template if provided (optional reference)
+  let template = null;
+  if (templateId) {
+    template = await Template.findById(templateId);
     if (!template) {
       return res.status(404).json({ message: 'Template not found' });
     }
-
-    const contacts = await Contact.find({ _id: { $in: contactIds } });
-
-    const previews = contacts.map((contact) => ({
-      contactId: contact._id,
-      name: contact.name,
-      phone: contact.phone,
-      message: ProviderFactory.replaceVariables(template.message, contact),
-    }));
-
-    res.json(previews);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
   }
+
+  const contacts = await Contact.find({ _id: { $in: contactIds } });
+  if (contacts.length === 0) {
+    return res.status(400).json({ message: 'No valid contacts found for the provided IDs' });
+  }
+
+  const campaign = await Campaign.create({
+    campaignName,
+    templateId: templateId || null,
+    metaTemplateName,
+    metaTemplateLanguage: metaTemplateLanguage || 'en_US',
+    contactIds: contacts.map((c) => c._id),
+    totalContacts: contacts.length,
+    status: send ? 'sending' : 'draft',
+  });
+
+  const populated = await Campaign.findById(campaign._id).populate('templateId', 'title source');
+
+  if (send) {
+    // Respond immediately — send in background
+    res.status(202).json({
+      ...populated.toObject(),
+      _queued: true,
+      message: 'Campaign queued for sending',
+    });
+
+    // Fire and forget — background processing
+    const io = req.app.get('io');
+    setImmediate(() =>
+      campaignQueue.processCampaignWithQueue(campaign, template, contacts, io).catch((err) =>
+        console.error(`[Campaign] Background send error: ${err.message}`)
+      )
+    );
+    return;
+  }
+
+  res.status(201).json(populated);
 };
 
-// Send existing draft campaign
-const sendCampaign = async (req, res) => {
-  try {
-    const campaign = await Campaign.findById(req.params.id);
+// @desc    Preview campaign messages without sending
+// @route   POST /api/campaigns/preview
+const previewCampaign = async (req, res) => {
+  const { metaTemplateName, contactIds } = req.body;
 
-    if (!campaign) {
-      return res.status(404).json({ message: 'Campaign not found' });
-    }
-
-    if (campaign.status === 'completed' || campaign.status === 'sending') {
-      return res.status(400).json({ message: 'Campaign already sent or in progress' });
-    }
-
-    const template = campaign.templateId ? await Template.findById(campaign.templateId) : null;
-    const contacts = await Contact.find({ _id: { $in: campaign.contactIds } });
-
-    campaign.status = 'sending';
-    await campaign.save();
-
-    await processCampaign(campaign, template, contacts);
-
-    const updated = await Campaign.findById(campaign._id).populate('templateId', 'title message');
-    res.json(updated);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  if (!metaTemplateName || !contactIds || contactIds.length === 0) {
+    return res.status(400).json({ message: 'metaTemplateName and contactIds are required' });
   }
+
+  const contacts = await Contact.find({ _id: { $in: contactIds } });
+
+  const previews = contacts.map((contact) => ({
+    contactId: contact._id,
+    name: contact.name,
+    phone: contact.phone,
+    message: `📨 Meta template "${metaTemplateName}" will be sent to this contact`,
+  }));
+
+  res.json(previews);
+};
+
+// @desc    Send an existing draft campaign
+// @route   POST /api/campaigns/:id/send
+const sendCampaign = async (req, res) => {
+  const campaign = await Campaign.findById(req.params.id);
+
+  if (!campaign) {
+    return res.status(404).json({ message: 'Campaign not found' });
+  }
+
+  if (campaign.status === 'completed' || campaign.status === 'sending' || campaign.status === 'partial') {
+    return res.status(400).json({ message: `Campaign cannot be sent — current status: ${campaign.status}` });
+  }
+
+  if (!campaign.metaTemplateName) {
+    return res.status(400).json({ message: 'Campaign has no Meta template configured' });
+  }
+
+  const template = campaign.templateId ? await Template.findById(campaign.templateId) : null;
+  const contacts = await Contact.find({ _id: { $in: campaign.contactIds } });
+
+  if (contacts.length === 0) {
+    return res.status(400).json({ message: 'No valid contacts found for this campaign' });
+  }
+
+  campaign.status = 'sending';
+  await campaign.save();
+
+  // Respond immediately — process in background
+  res.status(202).json({
+    ...campaign.toObject(),
+    _queued: true,
+    message: 'Campaign queued for sending',
+  });
+
+  const io = req.app.get('io');
+  setImmediate(() =>
+    campaignQueue.processCampaignWithQueue(campaign, template, contacts, io).catch((err) =>
+      console.error(`[Campaign] Background send error: ${err.message}`)
+    )
+  );
+};
+
+// @desc    Get single campaign with latest stats
+// @route   GET /api/campaigns/:id
+const getCampaignById = async (req, res) => {
+  const campaign = await Campaign.findById(req.params.id).populate('templateId', 'title source');
+  if (!campaign) {
+    return res.status(404).json({ message: 'Campaign not found' });
+  }
+  res.json(campaign);
 };
 
 module.exports = {
@@ -138,4 +160,5 @@ module.exports = {
   createCampaign,
   previewCampaign,
   sendCampaign,
+  getCampaignById,
 };

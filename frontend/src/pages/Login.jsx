@@ -4,15 +4,15 @@ import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
   const { user, login, loading } = useAuth();
-  const [email, setEmail] = useState('admin@campaign.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-600 to-primary-800">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white"></div>
       </div>
     );
   }
@@ -24,12 +24,17 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setSubmitting(true);
 
+    if (!email.trim() || !password) {
+      setError('Please enter your email and password');
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      await login(email, password);
+      await login(email.trim(), password);
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed');
+      setError(err.response?.data?.message || 'Login failed. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -43,7 +48,7 @@ const Login = () => {
             💬
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Welcome Back</h1>
-          <p className="text-gray-500 mt-1">WhatsApp Bulk Campaign Manager</p>
+          <p className="text-gray-500 mt-1">WhatsApp Campaign Manager</p>
         </div>
 
         {error && (
@@ -52,35 +57,46 @@ const Login = () => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
             <input
+              id="login-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="input-field"
+              placeholder="you@example.com"
+              autoComplete="email"
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-1">
+              Password
+            </label>
             <input
+              id="login-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="input-field"
+              placeholder="••••••••"
+              autoComplete="current-password"
               required
             />
           </div>
-          <button type="submit" disabled={submitting} className="btn-primary w-full py-3">
+          <button
+            type="submit"
+            id="login-submit-btn"
+            disabled={submitting}
+            className="btn-primary w-full py-3"
+          >
             {submitting ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-
-        <p className="text-center text-xs text-gray-400 mt-6">
-          Demo: admin@campaign.com / admin123
-        </p>
       </div>
     </div>
   );

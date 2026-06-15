@@ -6,7 +6,12 @@
 const express = require('express');
 const { testWhatsAppConnection, getMetaCredentialsStatus, testWebhookProcessing } = require('../controllers/testController');
 
+const { protect } = require('../middleware/auth');
+
 const router = express.Router();
+
+// All test endpoints require authentication — they expose credential status
+router.use(protect);
 
 /**
  * GET /api/test-whatsapp/status
