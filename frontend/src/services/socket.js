@@ -18,8 +18,9 @@ import { io } from 'socket.io-client';
 
 let socket = null;
 
-// Backend WS URL — same server as API but via direct connection (not through Vite proxy for WS)
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// Backend WS URL — socket.io connects to the server root, not the /api path
+// VITE_API_URL includes /api (e.g. https://backend.onrender.com/api), so strip it
+const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/api\/?$/, '');
 
 /**
  * Get or create the singleton socket instance.

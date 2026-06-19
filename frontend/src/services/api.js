@@ -1,17 +1,21 @@
 import axios from 'axios';
 
 // In development, Vite proxies /api/* to localhost:5000 — so baseURL is just '/api'
-// In production, VITE_API_URL must be set to the Render backend URL
+// In production, VITE_API_URL must include the /api prefix (e.g. https://backend.onrender.com/api)
+// DO NOT append '/api' here — the env var already contains it.
 const BASE_URL = import.meta.env.PROD
-  ? `${(import.meta.env.VITE_API_URL || '').replace(/\/+$/, '')}/api`
+  ? (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '')
   : '/api';
 
 if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
   console.error(
     '[API] VITE_API_URL is not set! All API calls will fail. ' +
-    'Set this in your Vercel environment variables to your Render backend URL.'
+    'Set this in your Vercel environment variables to your Render backend URL (including /api).'
   );
 }
+
+// Debug logging — helps diagnose URL issues in all environments
+console.log('[API] baseURL:', BASE_URL);
 
 const API = axios.create({
   baseURL: BASE_URL,
