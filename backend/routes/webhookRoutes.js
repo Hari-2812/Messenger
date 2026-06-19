@@ -9,17 +9,17 @@ const { verifyWebhook, handleWebhook } = require('../controllers/webhookControll
 const router = express.Router();
 
 /**
- * GET /api/webhooks/meta
+ * GET /api/webhooks/meta and GET /api/webhooks
  * Webhook verification endpoint
- * Meta sends a GET request here to verify the webhook endpoint
  */
 router.get('/meta', verifyWebhook);
+router.get('/', verifyWebhook);
 
 /**
- * POST /api/webhooks/meta
+ * POST /api/webhooks/meta and POST /api/webhooks
  * Webhook event handler
- * Meta sends status updates and incoming messages here
  */
 router.post('/meta', handleWebhook);
+router.post('/', handleWebhook);
 
 module.exports = router;

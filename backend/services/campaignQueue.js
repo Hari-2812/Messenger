@@ -83,7 +83,7 @@ const sendSingleMessage = async (item) => {
       phone,
       message: previewMessage || `[Meta Template: ${templateName}]`,
       provider: 'meta',
-      status: result.success ? 'sent' : 'failed',
+      status: result.success ? 'accepted' : 'failed',
       sentAt: result.sentAt || (result.success ? new Date() : null),
       failureReason: result.error || null,
     };
@@ -229,14 +229,11 @@ const processCampaignWithQueue = async (campaign, template, contacts, io = null)
       campaign._id.toString()
     );
 
-    // Determine final campaign status
-    let finalStatus;
+    // Determine campaign status after initial queueing.
+    // Keep as 'sending' if messages were accepted and are awaiting webhooks.
+    let finalStatus = 'sending';
     if (results.sent === 0) {
       finalStatus = 'failed';
-    } else if (results.failed > 0) {
-      finalStatus = 'partial';
-    } else {
-      finalStatus = 'completed';
     }
 
     campaign.sentCount = results.sent;

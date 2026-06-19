@@ -55,6 +55,12 @@ const handleWebhook = async (req, res) => {
     return res.status(403).json({ message: 'Invalid webhook signature' });
   }
 
+  // Log Webhook Event for Render/Production diagnostics
+  console.log(
+    "WEBHOOK EVENT:",
+    JSON.stringify(req.body, null, 2)
+  );
+
   // Acknowledge immediately (Meta requires < 5s response)
   res.status(200).json({ received: true });
 
@@ -109,7 +115,7 @@ const handleMessageStatus = async (statusObj, io = null) => {
     return;
   }
 
-  const validStatuses = ['sent', 'delivered', 'read', 'failed'];
+  const validStatuses = ['accepted', 'sent', 'delivered', 'read', 'failed'];
   if (!validStatuses.includes(status)) {
     console.log(`[Webhook] Unhandled status "${status}" for ${metaMessageId} — skipping`);
     return;
@@ -139,18 +145,53 @@ const handleMessageStatus = async (statusObj, io = null) => {
       'Unknown failure';
     messageLog.failureReason = errMsg;
 
-    // Increment campaign failedCount when individual messages fail via webhook
-    if (messageLog.campaignId) {
-      await Campaign.findByIdAndUpdate(messageLog.campaignId, { $inc: { failedCount: 1 } });
-    }
-
-    console.error(
-      `[Webhook] Message failed: ${metaMessageId} | recipient: ${recipient_id} | reason: ${errMsg}`
-    );
-  }
-
   await messageLog.save();
   console.log(`[Webhook] ✓ Status updated: ${metaMessageId} → ${status}`);
+
+  // Update parent Campaign status and counts if it exists
+  if (messageLog.campaignId) {
+    try {
+      const allLogs = await MessageLog.find({ campaignId: messageLog.campaignId });
+      const totalCount = allLogs.length;
+      
+      const failedCount = allLogs.filter(l => l.status === 'failed').length;
+      const successCount = allLogs.filter(l => ['sent', 'delivered', 'read'].includes(l.status)).length;
+      const inProgressCount = allLogs.filter(l => ['pending', 'accepted'].includes(l.status)).length;
+
+      let finalCampaignStatus = 'sending';
+      if (inProgressCount === 0) {
+        if (failedCount === totalCount) {
+          finalCampaignStatus = 'failed';
+        } else if (failedCount > 0) {
+          finalCampaignStatus = 'partial';
+        } else {
+          finalCampaignStatus = 'completed';
+        }
+      }
+
+      await Campaign.findByIdAndUpdate(messageLog.campaignId, {
+        status: finalCampaignStatus,
+        sentCount: successCount,
+        failedCount: failedCount
+      });
+
+      console.log(`[Webhook] Updated Campaign ${messageLog.campaignId} status to: ${finalCampaignStatus} (success: ${successCount}, failed: ${failedCount}, remaining: ${inProgressCount})`);
+
+      // Real-time progress updates for Campaign list
+      if (io) {
+        io.to(`campaign:${messageLog.campaignId}`).emit('campaign:progress', {
+          campaignId: messageLog.campaignId,
+          sent: successCount,
+          failed: failedCount,
+          total: totalCount,
+          percent: Math.round(((successCount + failedCount) / totalCount) * 100),
+          status: finalCampaignStatus
+        });
+      }
+    } catch (campaignErr) {
+      console.error('[Webhook] Failed to update parent campaign stats:', campaignErr.message);
+    }
+  }
 
   // Emit real-time event to Logs page subscribers
   if (io) {

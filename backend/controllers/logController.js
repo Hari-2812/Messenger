@@ -65,7 +65,7 @@ const getDashboardStats = async (req, res) => {
     totalMessagesDelivered: statusMap.delivered || 0,
     totalMessagesRead: statusMap.read || 0,
     totalMessagesFailed: statusMap.failed || 0,
-    totalMessagesPending: statusMap.pending || 0,
+    totalMessagesPending: (statusMap.pending || 0) + (statusMap.accepted || 0),
     totalMessages: messageStats[0]?.total?.[0]?.count || 0,
     recentCampaigns,
   });

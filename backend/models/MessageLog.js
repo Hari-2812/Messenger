@@ -9,7 +9,7 @@ const messageLogSchema = new mongoose.Schema(
     message: { type: String, default: '' },
     status: {
       type: String,
-      enum: ['pending', 'sent', 'delivered', 'read', 'failed'],
+      enum: ['pending', 'accepted', 'sent', 'delivered', 'read', 'failed'],
       default: 'pending',
     },
     // Meta WhatsApp message ID returned from the Cloud API (used for delivery tracking)

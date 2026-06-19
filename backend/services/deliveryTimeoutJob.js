@@ -31,9 +31,9 @@ const runTimeoutCheck = async () => {
   try {
     const cutoff = new Date(Date.now() - DELIVERY_TIMEOUT_MINUTES * 60 * 1000);
 
-    // Find all "sent" messages older than the cutoff
+    // Find all "sent" or "accepted" messages older than the cutoff
     const staleLogs = await MessageLog.find({
-      status: 'sent',
+      status: { $in: ['sent', 'accepted'] },
       sentAt: { $lt: cutoff, $ne: null },
     }).select('_id campaignId');
 
@@ -66,9 +66,30 @@ const runTimeoutCheck = async () => {
       return acc;
     }, {});
 
-    const campaignUpdates = Object.entries(campaignCounts).map(([campaignId, count]) =>
-      Campaign.findByIdAndUpdate(campaignId, { $inc: { failedCount: count } })
-    );
+    const campaignUpdates = Object.keys(campaignCounts).map(async (campaignId) => {
+      const allLogs = await MessageLog.find({ campaignId });
+      const totalCount = allLogs.length;
+      const failedCount = allLogs.filter(l => l.status === 'failed').length;
+      const successCount = allLogs.filter(l => ['sent', 'delivered', 'read'].includes(l.status)).length;
+      const inProgressCount = allLogs.filter(l => ['pending', 'accepted'].includes(l.status)).length;
+
+      let finalCampaignStatus = 'sending';
+      if (inProgressCount === 0) {
+        if (failedCount === totalCount) {
+          finalCampaignStatus = 'failed';
+        } else if (failedCount > 0) {
+          finalCampaignStatus = 'partial';
+        } else {
+          finalCampaignStatus = 'completed';
+        }
+      }
+
+      await Campaign.findByIdAndUpdate(campaignId, {
+        status: finalCampaignStatus,
+        sentCount: successCount,
+        failedCount: failedCount
+      });
+    });
 
     await Promise.all(campaignUpdates);
 
