@@ -55,11 +55,7 @@ const handleWebhook = async (req, res) => {
     return res.status(403).json({ message: 'Invalid webhook signature' });
   }
 
-  // Log Webhook Event for Render/Production diagnostics
-  console.log(
-    "WEBHOOK EVENT:",
-    JSON.stringify(req.body, null, 2)
-  );
+  console.log('[Webhook] EVENT:', JSON.stringify(req.body, null, 2));
 
   // Acknowledge immediately (Meta requires < 5s response)
   res.status(200).json({ received: true });
@@ -104,11 +100,11 @@ const processWebhookAsync = async (body, io = null) => {
 
 /**
  * Update a MessageLog record based on Meta's delivery status callback.
- * Also updates Campaign.failedCount when a message fails via webhook.
- * Emits real-time socket event for the Logs page.
+ * Also updates Campaign counts when a message status changes.
+ * Emits real-time socket events for Logs and Campaign pages.
  */
 const handleMessageStatus = async (statusObj, io = null) => {
-  const { id: metaMessageId, status, timestamp, recipient_id, errors } = statusObj;
+  const { id: metaMessageId, status, timestamp, errors } = statusObj;
 
   if (!metaMessageId) {
     console.warn('[Webhook] Status update missing message ID — skipping');
@@ -128,7 +124,9 @@ const handleMessageStatus = async (statusObj, io = null) => {
     return;
   }
 
-  const statusTimestamp = timestamp ? new Date(parseInt(timestamp, 10) * 1000) : new Date();
+  const statusTimestamp = timestamp
+    ? new Date(parseInt(timestamp, 10) * 1000)
+    : new Date();
 
   messageLog.status = status;
 
@@ -139,24 +137,29 @@ const handleMessageStatus = async (statusObj, io = null) => {
   } else if (status === 'read') {
     messageLog.readAt = statusTimestamp;
   } else if (status === 'failed') {
+    // ← This closing brace was missing — caused "Unexpected end of input"
     const errMsg =
       errors?.[0]?.message ||
       errors?.[0]?.error_data?.details ||
       'Unknown failure';
     messageLog.failureReason = errMsg;
+  }
 
   await messageLog.save();
   console.log(`[Webhook] ✓ Status updated: ${metaMessageId} → ${status}`);
 
-  // Update parent Campaign status and counts if it exists
+  // Update parent Campaign status and counts
   if (messageLog.campaignId) {
     try {
       const allLogs = await MessageLog.find({ campaignId: messageLog.campaignId });
-      const totalCount = allLogs.length;
-      
-      const failedCount = allLogs.filter(l => l.status === 'failed').length;
-      const successCount = allLogs.filter(l => ['sent', 'delivered', 'read'].includes(l.status)).length;
-      const inProgressCount = allLogs.filter(l => ['pending', 'accepted'].includes(l.status)).length;
+      const totalCount    = allLogs.length;
+      const failedCount   = allLogs.filter((l) => l.status === 'failed').length;
+      const successCount  = allLogs.filter((l) =>
+        ['sent', 'delivered', 'read'].includes(l.status)
+      ).length;
+      const inProgressCount = allLogs.filter((l) =>
+        ['pending', 'accepted'].includes(l.status)
+      ).length;
 
       let finalCampaignStatus = 'sending';
       if (inProgressCount === 0) {
@@ -170,38 +173,44 @@ const handleMessageStatus = async (statusObj, io = null) => {
       }
 
       await Campaign.findByIdAndUpdate(messageLog.campaignId, {
-        status: finalCampaignStatus,
-        sentCount: successCount,
-        failedCount: failedCount
+        status:      finalCampaignStatus,
+        sentCount:   successCount,
+        failedCount: failedCount,
       });
 
-      console.log(`[Webhook] Updated Campaign ${messageLog.campaignId} status to: ${finalCampaignStatus} (success: ${successCount}, failed: ${failedCount}, remaining: ${inProgressCount})`);
+      console.log(
+        `[Webhook] Updated Campaign ${messageLog.campaignId} → ${finalCampaignStatus} ` +
+        `(success: ${successCount}, failed: ${failedCount}, remaining: ${inProgressCount})`
+      );
 
-      // Real-time progress updates for Campaign list
+      // Real-time progress update for Campaign page
       if (io) {
         io.to(`campaign:${messageLog.campaignId}`).emit('campaign:progress', {
           campaignId: messageLog.campaignId,
-          sent: successCount,
-          failed: failedCount,
-          total: totalCount,
-          percent: Math.round(((successCount + failedCount) / totalCount) * 100),
-          status: finalCampaignStatus
+          sent:       successCount,
+          failed:     failedCount,
+          total:      totalCount,
+          percent:    Math.round(((successCount + failedCount) / totalCount) * 100),
+          status:     finalCampaignStatus,
         });
       }
     } catch (campaignErr) {
-      console.error('[Webhook] Failed to update parent campaign stats:', campaignErr.message);
+      console.error(
+        '[Webhook] Failed to update parent campaign stats:',
+        campaignErr.message
+      );
     }
   }
 
-  // Emit real-time event to Logs page subscribers
+  // Real-time update for Logs page
   if (io) {
     io.to('logs').emit('log:status_update', {
-      logId: messageLog._id,
+      logId:          messageLog._id,
       metaMessageId,
       status,
-      deliveredAt: messageLog.deliveredAt,
-      readAt: messageLog.readAt,
-      failureReason: messageLog.failureReason,
+      deliveredAt:    messageLog.deliveredAt,
+      readAt:         messageLog.readAt,
+      failureReason:  messageLog.failureReason,
     });
   }
 };
