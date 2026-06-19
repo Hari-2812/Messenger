@@ -14,12 +14,9 @@ const { GRAPH_API_VERSION, GRAPH_API_URL } = require('../config/meta');
 
 // ── Retry configuration ───────────────────────────────────────────────────────
 const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = [1000, 2000, 4000]; // exponential backoff
+const RETRY_DELAY_MS = [1000, 2000, 4000];
 const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
 
-/**
- * Sleep helper for retry delays
- */
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
@@ -28,13 +25,12 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const fetchWithRetry = async (url, options, label = 'MetaProvider') => {
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    const timeout = setTimeout(() => controller.abort(), 30000);
 
     try {
       const response = await fetch(url, { ...options, signal: controller.signal });
       clearTimeout(timeout);
 
-      // Retry on transient errors
       if (!response.ok && RETRYABLE_STATUSES.has(response.status) && attempt < MAX_RETRIES) {
         const delay = RETRY_DELAY_MS[attempt];
         console.warn(
@@ -63,10 +59,6 @@ const fetchWithRetry = async (url, options, label = 'MetaProvider') => {
 
 /**
  * Verify webhook signature from Meta — timing-attack safe
- * @param {string} payload - Raw request body string
- * @param {string} signature - X-Hub-Signature-256 header value
- * @param {string} appSecret - WhatsApp App Secret
- * @returns {boolean}
  */
 const verifyWebhookSignature = (payload, signature, appSecret) => {
   if (!appSecret || !signature) return false;
@@ -78,14 +70,12 @@ const verifyWebhookSignature = (payload, signature, appSecret) => {
 
   const expectedSignature = `sha256=${hash}`;
 
-  // Timing-safe comparison — prevents timing attacks
   try {
     return crypto.timingSafeEqual(
       Buffer.from(signature),
       Buffer.from(expectedSignature)
     );
   } catch {
-    // Lengths differ — definitely invalid
     return false;
   }
 };
@@ -156,13 +146,13 @@ const sendMessage = async (phoneNumber, message) => {
  * Send a WhatsApp template message via Meta Cloud API
  * @param {string} phoneNumber - Recipient phone number (with or without +)
  * @param {string} templateName - Approved Meta template name
- * @param {Array} parameters - Body variable values
+ * @param {object} components - { header: [], body: [], buttons: [] }
  * @param {string} languageCode - Template language code (e.g. 'en_US')
  */
 const sendTemplateMessage = async (
   phoneNumber,
   templateName,
-  parameters = [],
+  components = {},
   languageCode = 'en_US'
 ) => {
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
@@ -175,6 +165,44 @@ const sendTemplateMessage = async (
   const formattedPhone = phoneNumber.replace(/\D/g, '').replace(/^\+/, '');
   const url = `${GRAPH_API_URL}/${GRAPH_API_VERSION}/${phoneNumberId}/messages`;
 
+  // Build components array dynamically
+  const templateComponents = [];
+
+  // Header parameters (text, image, video, document)
+  if (components.header && components.header.length > 0) {
+    templateComponents.push({
+      type: 'header',
+      parameters: components.header.map((param) =>
+        typeof param === 'string'
+          ? { type: 'text', text: String(param) }
+          : param // allow { type: 'image', image: { link: '...' } } etc.
+      ),
+    });
+  }
+
+  // Body parameters {{1}}, {{2}}, ...
+  if (components.body && components.body.length > 0) {
+    templateComponents.push({
+      type: 'body',
+      parameters: components.body.map((param) => ({
+        type: 'text',
+        text: String(param),
+      })),
+    });
+  }
+
+  // Button parameters (quick reply / URL suffix)
+  if (components.buttons && components.buttons.length > 0) {
+    components.buttons.forEach((btn, index) => {
+      templateComponents.push({
+        type: 'button',
+        sub_type: btn.sub_type || 'quick_reply',
+        index: String(index),
+        parameters: [{ type: 'payload', payload: btn.payload }],
+      });
+    });
+  }
+
   const payload = {
     messaging_product: 'whatsapp',
     to: formattedPhone,
@@ -182,20 +210,13 @@ const sendTemplateMessage = async (
     template: {
       name: templateName,
       language: { code: languageCode },
+      ...(templateComponents.length > 0 && { components: templateComponents }),
     },
   };
 
-  if (parameters && parameters.length > 0) {
-    payload.template.components = [
-      {
-        type: 'body',
-        parameters: parameters.map((param) => ({ type: 'text', text: String(param) })),
-      },
-    ];
-  }
-
   console.log(
-    `[MetaProvider] sendTemplateMessage → ${formattedPhone} | template: "${templateName}" (${languageCode})`
+    `[MetaProvider] sendTemplateMessage → ${formattedPhone} | template: "${templateName}" | components:`,
+    JSON.stringify(templateComponents, null, 2)
   );
 
   try {
@@ -239,13 +260,28 @@ const sendTemplateMessage = async (
 };
 
 /**
- * Replace template variables with contact data (local preview only)
+ * Replace template variables with contact data
+ * Supports both {{1}}, {{2}} (Meta format) and {{name}}, {{phone}} (legacy)
  */
-const replaceVariables = (template, contact) => {
-  return template
-    .replace(/\{\{name\}\}/gi, contact.name || '')
+const replaceVariables = (templateText, contact) => {
+  const variableMap = [
+    contact.name  || '',   // {{1}}
+    contact.phone || '',   // {{2}}
+    contact.email || '',   // {{3}}
+  ];
+
+  // Replace numbered Meta variables {{1}}, {{2}}, {{3}}
+  let result = templateText.replace(/\{\{(\d+)\}\}/g, (_, index) => {
+    return variableMap[parseInt(index) - 1] || '';
+  });
+
+  // Replace named legacy variables {{name}}, {{phone}}, {{email}}
+  result = result
+    .replace(/\{\{name\}\}/gi,  contact.name  || '')
     .replace(/\{\{phone\}\}/gi, contact.phone || '')
     .replace(/\{\{email\}\}/gi, contact.email || '');
+
+  return result;
 };
 
 module.exports = {

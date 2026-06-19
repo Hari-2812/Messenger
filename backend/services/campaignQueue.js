@@ -6,6 +6,7 @@
  *  - Detailed per-message logging (MessageLog)
  *  - Real-time socket.io progress events
  *  - Partial campaign status support
+ *  - Dynamic template variable mapping per contact
  *
  * Privacy: Phone numbers are NEVER logged individually.
  */
@@ -15,20 +16,64 @@ const MessageLog = require('../models/MessageLog');
 const ProviderFactory = require('./ProviderFactory');
 
 /**
+ * Build ordered parameter array for Meta template body variables.
+ * Maps campaign.templateVariables config → contact fields.
+ *
+ * e.g. templateVariables: ['name', 'phone']
+ *   → contact.name  = {{1}}
+ *   → contact.phone = {{2}}
+ *
+ * @param {Object} campaign - Campaign Mongoose document
+ * @param {Object} contact  - Contact Mongoose document
+ * @returns {string[]}      - Ordered values for {{1}}, {{2}}, ...
+ */
+const buildTemplateParams = (campaign, contact) => {
+  const count = campaign.templateParamCount || 0;
+
+  // Template has no variables — send empty (no components needed)
+  if (count === 0) return [];
+
+  // Use explicit field mapping if defined
+  if (campaign.templateVariables && campaign.templateVariables.length > 0) {
+    return campaign.templateVariables.slice(0, count).map((field) =>
+      String(contact[field] || contact.customFields?.[field] || '')
+    );
+  }
+
+  // Fallback — map name → {{1}}, phone → {{2}}, email → {{3}}
+  return [
+    contact.name  || 'Customer',
+    contact.phone || '',
+    contact.email || '',
+  ]
+    .slice(0, count)
+    .map(String);
+};
+
+/**
  * Send a single template message and write a MessageLog entry.
  */
 const sendSingleMessage = async (item) => {
-  const { phone, contactId, campaignId, templateName, templateLanguage, parameters, previewMessage } = item;
+  const {
+    phone,
+    contactId,
+    campaignId,
+    templateName,
+    templateLanguage,
+    parameters,
+    previewMessage,
+  } = item;
 
   try {
     if (!templateName) {
       throw new Error('No Meta template name specified');
     }
 
+    // Pass structured components object — MetaProvider expects { body: [] }
     const result = await ProviderFactory.sendTemplateMessage(
       phone,
       templateName,
-      parameters || [],
+      { body: parameters || [] },
       templateLanguage || 'en_US'
     );
 
@@ -51,7 +96,9 @@ const sendSingleMessage = async (item) => {
 
     return { success: result.success, error: result.error || null };
   } catch (error) {
-    console.error(`[CampaignQueue] Exception sending to contact ${contactId}: ${error.message}`);
+    console.error(
+      `[CampaignQueue] Exception sending to contact ${contactId}: ${error.message}`
+    );
 
     await MessageLog.create({
       campaignId,
@@ -68,16 +115,23 @@ const sendSingleMessage = async (item) => {
 };
 
 /**
- * Send messages with concurrency control
- * Emits socket.io events for real-time progress
+ * Send messages with concurrency control.
+ * Emits socket.io events for real-time progress.
  */
-const sendWithConcurrency = async (items, concurrency = 5, io = null, campaignId = null) => {
+const sendWithConcurrency = async (
+  items,
+  concurrency = 5,
+  io = null,
+  campaignId = null
+) => {
   const results = { sent: 0, failed: 0, errors: [] };
   const total = items.length;
 
   for (let i = 0; i < items.length; i += concurrency) {
     const batch = items.slice(i, i + concurrency);
-    const batchResults = await Promise.allSettled(batch.map((item) => sendSingleMessage(item)));
+    const batchResults = await Promise.allSettled(
+      batch.map((item) => sendSingleMessage(item))
+    );
 
     for (const result of batchResults) {
       if (result.status === 'fulfilled') {
@@ -91,7 +145,9 @@ const sendWithConcurrency = async (items, concurrency = 5, io = null, campaignId
 
     // Emit real-time progress via socket.io
     if (io && campaignId) {
-      const progress = Math.round(((results.sent + results.failed) / total) * 100);
+      const progress = Math.round(
+        ((results.sent + results.failed) / total) * 100
+      );
       io.to(`campaign:${campaignId}`).emit('campaign:progress', {
         campaignId,
         sent: results.sent,
@@ -106,14 +162,14 @@ const sendWithConcurrency = async (items, concurrency = 5, io = null, campaignId
 };
 
 /**
- * Process a campaign — prepare all message items and send with concurrency control.
+ * Process a campaign — prepare all message items and send with concurrency.
  * Called in background (setImmediate) from campaignController.
  * Emits campaign:completed / campaign:failed socket events when done.
  *
- * @param {Object} campaign - Campaign Mongoose document
+ * @param {Object}      campaign - Campaign Mongoose document
  * @param {Object|null} template - Local Template document (optional, preview only)
- * @param {Array} contacts - Array of Contact documents
- * @param {Object|null} io - socket.io server instance
+ * @param {Array}       contacts - Array of Contact documents
+ * @param {Object|null} io       - socket.io server instance
  */
 const processCampaignWithQueue = async (campaign, template, contacts, io = null) => {
   const concurrency = parseInt(process.env.CAMPAIGN_CONCURRENCY || '5', 10);
@@ -135,29 +191,50 @@ const processCampaignWithQueue = async (campaign, template, contacts, io = null)
 
   console.log(
     `[CampaignQueue] Starting campaign "${campaign.campaignName}" | ` +
-    `template: ${campaign.metaTemplateName} | recipients: ${contacts.length} | concurrency: ${concurrency}`
+    `template: ${campaign.metaTemplateName} | ` +
+    `variables: [${(campaign.templateVariables || []).join(', ')}] | ` +
+    `paramCount: ${campaign.templateParamCount || 0} | ` +
+    `recipients: ${contacts.length} | concurrency: ${concurrency}`
   );
 
-  // Build send items — no PII phone numbers in logs
-  const items = contacts.map((contact) => ({
-    phone: contact.phone,
-    contactId: contact._id,
-    campaignId: campaign._id,
-    templateName: campaign.metaTemplateName,
-    templateLanguage: campaign.metaTemplateLanguage || 'en_US',
-    parameters: [],
-    previewMessage: `[Template: ${campaign.metaTemplateName}]`,
-  }));
+  // Build send items per contact — resolves template variables dynamically
+  const items = contacts.map((contact) => {
+    const parameters = buildTemplateParams(campaign, contact);
+
+    // Build a readable preview by replacing {{1}}, {{2}} in body text
+    let previewMessage = `[Template: ${campaign.metaTemplateName}]`;
+    if (parameters.length > 0) {
+      previewMessage = parameters.reduce(
+        (text, value, i) => text.replace(`{{${i + 1}}}`, value),
+        campaign.metaTemplateBodyText || previewMessage
+      );
+    }
+
+    return {
+      phone: contact.phone,
+      contactId: contact._id,
+      campaignId: campaign._id,
+      templateName: campaign.metaTemplateName,
+      templateLanguage: campaign.metaTemplateLanguage || 'en_US',
+      parameters,       // e.g. ['John', '+91 98765 43210']
+      previewMessage,   // e.g. 'Hi John, your number is +91 98765 43210'
+    };
+  });
 
   try {
-    const results = await sendWithConcurrency(items, concurrency, io, campaign._id.toString());
+    const results = await sendWithConcurrency(
+      items,
+      concurrency,
+      io,
+      campaign._id.toString()
+    );
 
-    // Determine final status
+    // Determine final campaign status
     let finalStatus;
     if (results.sent === 0) {
       finalStatus = 'failed';
     } else if (results.failed > 0) {
-      finalStatus = 'partial'; // Some sent, some failed
+      finalStatus = 'partial';
     } else {
       finalStatus = 'completed';
     }
@@ -173,7 +250,10 @@ const processCampaignWithQueue = async (campaign, template, contacts, io = null)
     );
 
     if (results.errors.length > 0) {
-      console.error(`[CampaignQueue] Errors (first 5):`, results.errors.slice(0, 5));
+      console.error(
+        `[CampaignQueue] Errors (first 5):`,
+        results.errors.slice(0, 5)
+      );
     }
 
     // Emit completion event
@@ -189,7 +269,9 @@ const processCampaignWithQueue = async (campaign, template, contacts, io = null)
 
     return results;
   } catch (error) {
-    console.error(`[CampaignQueue] Fatal error for campaign ${campaign._id}: ${error.message}`);
+    console.error(
+      `[CampaignQueue] Fatal error for campaign ${campaign._id}: ${error.message}`
+    );
     campaign.status = 'failed';
     await campaign.save();
 
@@ -202,4 +284,8 @@ const processCampaignWithQueue = async (campaign, template, contacts, io = null)
   }
 };
 
-module.exports = { sendWithConcurrency, sendSingleMessage, processCampaignWithQueue };
+module.exports = {
+  sendWithConcurrency,
+  sendSingleMessage,
+  processCampaignWithQueue,
+};

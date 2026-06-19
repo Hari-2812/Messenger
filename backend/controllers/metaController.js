@@ -9,8 +9,8 @@
 const { GRAPH_API_VERSION, GRAPH_API_URL } = require('../config/meta');
 
 /**
- * Fetch all templates from Meta with cursor-based pagination
- * Handles businesses with >100 templates correctly
+ * Fetch all templates from Meta with cursor-based pagination.
+ * Handles businesses with >100 templates correctly.
  */
 const fetchFromMeta = async (statusFilter = null) => {
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
@@ -26,7 +26,7 @@ const fetchFromMeta = async (statusFilter = null) => {
   let allTemplates = [];
   let nextCursor = null;
   let pageCount = 0;
-  const MAX_PAGES = 20; // Safety guard — prevents infinite loops
+  const MAX_PAGES = 20;
 
   do {
     const cursorParam = nextCursor ? `&after=${nextCursor}` : '';
@@ -55,7 +55,6 @@ const fetchFromMeta = async (statusFilter = null) => {
     const pageTemplates = data.data || [];
     allTemplates = allTemplates.concat(pageTemplates);
 
-    // Check for next page cursor
     nextCursor = data.paging?.cursors?.after || null;
     const hasNextPage = !!data.paging?.next;
     if (!hasNextPage) nextCursor = null;
@@ -63,17 +62,37 @@ const fetchFromMeta = async (statusFilter = null) => {
     pageCount++;
   } while (nextCursor && pageCount < MAX_PAGES);
 
-  console.log(`[Meta Templates] Fetched ${allTemplates.length} templates (${pageCount} page(s))`);
+  console.log(
+    `[Meta Templates] Fetched ${allTemplates.length} templates (${pageCount} page(s))`
+  );
 
   // Optionally filter by status
-  let templates = statusFilter
+  const templates = statusFilter
     ? allTemplates.filter((t) => t.status === statusFilter)
     : allTemplates;
 
-  // Extract body text from components for preview
+  // Extract body text, param count, and full components for frontend
   return templates.map((t) => {
-    const bodyComponent = (t.components || []).find((c) => c.type === 'BODY');
-    const bodyText = bodyComponent?.text || null;
+    const components = t.components || [];
+
+    const bodyComponent   = components.find((c) => c.type === 'BODY');
+    const headerComponent = components.find((c) => c.type === 'HEADER');
+    const footerComponent = components.find((c) => c.type === 'FOOTER');
+
+    const bodyText   = bodyComponent?.text   || null;
+    const headerText = headerComponent?.text || null;
+    const footerText = footerComponent?.text || null;
+
+    // Count {{1}}, {{2}}, ... placeholders in body
+    const bodyMatches = bodyText
+      ? [...bodyText.matchAll(/\{\{(\d+)\}\}/g)]
+      : [];
+    const paramCount = bodyMatches.length;
+
+    // Check if header also has a variable
+    const hasHeaderVariable = !!(
+      headerText && headerText.includes('{{')
+    );
 
     return {
       name: t.name,
@@ -81,6 +100,11 @@ const fetchFromMeta = async (statusFilter = null) => {
       language: t.language,
       status: t.status,
       bodyText,
+      headerText,
+      footerText,
+      paramCount,           // number of {{n}} vars in body — used by frontend
+      hasHeaderVariable,    // true if header has {{1}}
+      components,           // full components array for frontend param extraction
       rejectedReason: t.rejected_reason || null,
     };
   });
@@ -92,8 +116,14 @@ const fetchFromMeta = async (statusFilter = null) => {
  */
 const getMetaTemplates = async (req, res) => {
   const approvedTemplates = await fetchFromMeta('APPROVED');
-  console.log(`[Meta Templates] Returning ${approvedTemplates.length} APPROVED templates`);
-  res.json({ success: true, templates: approvedTemplates, total: approvedTemplates.length });
+  console.log(
+    `[Meta Templates] Returning ${approvedTemplates.length} APPROVED templates`
+  );
+  res.json({
+    success: true,
+    templates: approvedTemplates,
+    total: approvedTemplates.length,
+  });
 };
 
 /**
@@ -102,8 +132,14 @@ const getMetaTemplates = async (req, res) => {
  */
 const getAllMetaTemplates = async (req, res) => {
   const allTemplates = await fetchFromMeta(null);
-  console.log(`[Meta Templates] Returning ${allTemplates.length} total templates (all statuses)`);
-  res.json({ success: true, templates: allTemplates, total: allTemplates.length });
+  console.log(
+    `[Meta Templates] Returning ${allTemplates.length} total templates (all statuses)`
+  );
+  res.json({
+    success: true,
+    templates: allTemplates,
+    total: allTemplates.length,
+  });
 };
 
 module.exports = { getMetaTemplates, getAllMetaTemplates };
