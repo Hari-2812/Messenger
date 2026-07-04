@@ -7,7 +7,11 @@ const pageTitles = {
   '/contacts': 'Contacts',
   '/templates': 'Templates',
   '/campaigns': 'Campaigns',
+  '/campaigns/create': 'Create Campaign',
   '/logs': 'Message Logs',
+  '/wati/settings': 'WATI Settings',
+  '/whatsapp-inbox': 'WhatsApp Inbox',
+  '/analytics': 'Analytics',
 };
 
 const Layout = () => {

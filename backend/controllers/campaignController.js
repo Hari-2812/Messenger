@@ -56,6 +56,8 @@ const createCampaign = async (req, res) => {
     metaTemplateLanguage: metaTemplateLanguage || 'en_US',
     contactIds: contacts.map((c) => c._id),
     totalContacts: contacts.length,
+    provider: ProviderFactory.getProvider(),
+    createdBy: req.user?._id || null,
     status: send ? 'sending' : 'draft',
   });
 

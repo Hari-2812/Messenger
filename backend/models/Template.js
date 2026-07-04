@@ -7,11 +7,12 @@ const templateSchema = new mongoose.Schema(
     /**
      * source: 'local'  = created manually in this CRM (stored in MongoDB)
      *         'meta'   = synced from Meta Business Account (read-only reference)
+     *         'wati'   = synced from WATI (read-only reference)
      * This field differentiates local CRM templates from Meta-approved templates.
      */
     source: {
       type: String,
-      enum: ['local', 'meta'],
+      enum: ['local', 'meta', 'wati'],
       default: 'local',
     },
     // For Meta-synced templates only
@@ -19,6 +20,10 @@ const templateSchema = new mongoose.Schema(
     metaStatus: { type: String, default: null },  // e.g. "APPROVED", "PENDING"
     metaLanguage: { type: String, default: null }, // e.g. "en_US"
     metaCategory: { type: String, default: null }, // e.g. "MARKETING"
+    watiTemplateId: { type: String, default: null },
+    watiStatus: { type: String, default: null },
+    watiRaw: { type: mongoose.Schema.Types.Mixed, default: null },
+    variableCount: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

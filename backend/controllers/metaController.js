@@ -7,6 +7,9 @@
  */
 
 const { GRAPH_API_VERSION, GRAPH_API_URL } = require('../config/meta');
+const watiService = require('../services/watiService');
+
+const getProvider = () => (process.env.WHATSAPP_PROVIDER || 'meta').toLowerCase();
 
 /**
  * Fetch all templates from Meta with cursor-based pagination.
@@ -115,6 +118,10 @@ const fetchFromMeta = async (statusFilter = null) => {
  * Returns only APPROVED templates — Campaign creation dropdown
  */
 const getMetaTemplates = async (req, res) => {
+  if (getProvider() === 'wati') {
+    const data = await watiService.getApprovedTemplates();
+    return res.json({ success: true, templates: data.templates, total: data.total, provider: 'wati' });
+  }
   const approvedTemplates = await fetchFromMeta('APPROVED');
   console.log(
     `[Meta Templates] Returning ${approvedTemplates.length} APPROVED templates`
@@ -131,6 +138,10 @@ const getMetaTemplates = async (req, res) => {
  * Returns ALL templates with all statuses — Templates page dashboard
  */
 const getAllMetaTemplates = async (req, res) => {
+  if (getProvider() === 'wati') {
+    const data = await watiService.getApprovedTemplates({ includeAll: true });
+    return res.json({ success: true, templates: data.templates, total: data.total, provider: 'wati' });
+  }
   const allTemplates = await fetchFromMeta(null);
   console.log(
     `[Meta Templates] Returning ${allTemplates.length} total templates (all statuses)`

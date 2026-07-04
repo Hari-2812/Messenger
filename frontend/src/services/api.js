@@ -92,4 +92,25 @@ export const metaAPI = {
   getAllTemplates: () => API.get('/meta/templates/all'),    // All statuses — Templates page
 };
 
+export const watiAPI = {
+  getSettings: () => API.get('/wati/settings'),
+  syncTemplates: (params) => API.get('/wati/templates', { params }),
+};
+
+export const inboxAPI = {
+  getAll: (params) => API.get('/inbox', { params }),
+  getById: (id) => API.get(`/inbox/${id}`),
+  reply: (id, data) => API.post(`/inbox/${id}/reply`, data),
+};
+
+export const analyticsAPI = {
+  get: () => API.get('/analytics'),
+};
+
+export const automationAPI = {
+  getAll: () => API.get('/automation'),
+  create: (data) => API.post('/automation', data),
+  update: (id, data) => API.put(`/automation/${id}`, data),
+};
+
 export default API;

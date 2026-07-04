@@ -17,6 +17,11 @@ const campaignSchema = new mongoose.Schema(
 
     // Body text snapshot — used for preview in logs (not sent to Meta)
     metaTemplateBodyText: { type: String, default: null },
+    provider: { type: String, enum: ['meta', 'wati'], default: 'meta' },
+    deliveredCount: { type: Number, default: 0 },
+    readCount: { type: Number, default: 0 },
+    replyCount: { type: Number, default: 0 },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 
     // ── Template Variable Mapping ──────────────────────────────────────────────
     // Maps {{1}}, {{2}}, {{3}} → contact field names in order
@@ -50,5 +55,6 @@ const campaignSchema = new mongoose.Schema(
 campaignSchema.index({ createdAt: -1 });
 campaignSchema.index({ status: 1 });
 campaignSchema.index({ metaTemplateName: 1 });
+campaignSchema.index({ provider: 1 });
 
 module.exports = mongoose.model('Campaign', campaignSchema);

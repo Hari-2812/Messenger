@@ -13,6 +13,8 @@
 
 const Campaign = require('../models/Campaign');
 const MessageLog = require('../models/MessageLog');
+const Contact = require('../models/Contact');
+const Conversation = require('../models/Conversation');
 const ProviderFactory = require('./ProviderFactory');
 
 /**
@@ -70,29 +72,65 @@ const sendSingleMessage = async (item) => {
     }
 
     // Pass structured components object — MetaProvider expects { body: [] }
+    const provider = ProviderFactory.getProvider();
+    const localMessageId = `${campaignId}-${contactId}-${Date.now()}`;
     const result = await ProviderFactory.sendTemplateMessage(
       phone,
       templateName,
       { body: parameters || [] },
-      templateLanguage || 'en_US'
+      templateLanguage || 'en_US',
+      { localMessageId, broadcastName: String(campaignId) }
     );
 
     const logEntry = {
       campaignId,
       contactId,
       phone,
-      message: previewMessage || `[Meta Template: ${templateName}]`,
-      provider: 'meta',
+      message: previewMessage || `[Template: ${templateName}]`,
+      provider,
       status: result.success ? 'accepted' : 'failed',
       sentAt: result.sentAt || (result.success ? new Date() : null),
+      localMessageId: result.localMessageId || localMessageId,
       failureReason: result.error || null,
     };
 
     if (result.metaMessageId) {
       logEntry.metaMessageId = result.metaMessageId;
     }
+    if (result.watiMessageId) {
+      logEntry.watiMessageId = result.watiMessageId;
+    }
 
     await MessageLog.create(logEntry);
+    await Contact.findByIdAndUpdate(contactId, {
+      lastMessageStatus: logEntry.status,
+      lastMessageAt: new Date(),
+      ...(provider === 'wati' && result.success ? { whatsappStatus: 'active' } : {}),
+    });
+    await Conversation.findOneAndUpdate(
+      { phone },
+      {
+        $set: {
+          contactId,
+          phone,
+          lastMessage: logEntry.message,
+          lastMessageAt: new Date(),
+          lastMessageDirection: 'outbound',
+        },
+        $push: {
+          messages: {
+            direction: 'outbound',
+            text: logEntry.message,
+            status: logEntry.status,
+            provider,
+            providerMessageId: result.watiMessageId || result.metaMessageId || null,
+            localMessageId: logEntry.localMessageId,
+            timestamp: new Date(),
+          },
+        },
+      },
+      { upsert: true, new: true }
+    );
 
     return { success: result.success, error: result.error || null };
   } catch (error) {

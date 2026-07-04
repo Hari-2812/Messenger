@@ -2,6 +2,8 @@ const validator = require('validator');
 const Contact = require('../models/Contact');
 const csv = require('csv-parser');
 const fs = require('fs');
+const ProviderFactory = require('../services/ProviderFactory');
+const watiService = require('../services/watiService');
 
 /**
  * Validate and normalize a phone number for Meta WhatsApp API.
@@ -16,6 +18,23 @@ const validatePhone = (phone) => {
     return { valid: false, error: `Invalid phone number: "${phone}" (must be 7–15 digits)` };
   }
   return { valid: true, normalized: digits };
+};
+
+const syncToWatiIfEnabled = async (contact) => {
+  if (ProviderFactory.getProvider() !== 'wati') return contact;
+
+  try {
+    const result = await watiService.syncContact(contact);
+    contact.whatsappStatus = 'synced';
+    if (result.watiContactId) contact.watiContactId = result.watiContactId;
+    await contact.save();
+  } catch (error) {
+    contact.whatsappStatus = 'failed';
+    await contact.save();
+    console.warn(`[WATI] Contact sync failed for ${contact._id}: ${error.message}`);
+  }
+
+  return contact;
 };
 
 // @desc    Get all contacts (paginated + search)
@@ -41,7 +60,7 @@ const getContacts = async (req, res) => {
 // @desc    Create contact
 // @route   POST /api/contacts
 const createContact = async (req, res) => {
-  const { name, phone, email } = req.body;
+  const { name, phone, email, tags, source, customFields } = req.body;
 
   if (!name || !name.trim()) {
     return res.status(400).json({ message: 'Name is required' });
@@ -65,15 +84,19 @@ const createContact = async (req, res) => {
     name: name.trim(),
     phone: phoneCheck.normalized,
     email: email?.trim() || '',
+    tags: Array.isArray(tags) ? tags.map(String).filter(Boolean) : [],
+    source: source?.trim() || 'CRM',
+    customFields: customFields || {},
   });
 
+  await syncToWatiIfEnabled(contact);
   res.status(201).json(contact);
 };
 
 // @desc    Update contact
 // @route   PUT /api/contacts/:id
 const updateContact = async (req, res) => {
-  const { name, phone, email } = req.body;
+  const { name, phone, email, tags, source, customFields } = req.body;
   const contact = await Contact.findById(req.params.id);
 
   if (!contact) {
@@ -101,8 +124,12 @@ const updateContact = async (req, res) => {
 
   contact.name = name?.trim() || contact.name;
   contact.email = email !== undefined ? (email?.trim() || '') : contact.email;
+  if (Array.isArray(tags)) contact.tags = tags.map(String).filter(Boolean);
+  if (source !== undefined) contact.source = source?.trim() || 'CRM';
+  if (customFields !== undefined) contact.customFields = customFields || {};
 
   await contact.save();
+  await syncToWatiIfEnabled(contact);
   res.json(contact);
 };
 
@@ -146,6 +173,8 @@ const importContacts = async (req, res) => {
       const name = (row.Name || row.name || '').trim();
       const rawPhone = (row.Phone || row.phone || '').trim();
       const email = (row.Email || row.email || '').trim();
+      const tags = (row.Tags || row.tags || '').split(',').map((t) => t.trim()).filter(Boolean);
+      const source = (row.Source || row.source || 'CSV').trim();
 
       if (!name || !rawPhone) {
         errors.push({ row, reason: 'Missing name or phone' });
@@ -165,7 +194,8 @@ const importContacts = async (req, res) => {
       }
 
       try {
-        await Contact.create({ name, phone: phoneCheck.normalized, email });
+        const contact = await Contact.create({ name, phone: phoneCheck.normalized, email, tags, source });
+        await syncToWatiIfEnabled(contact);
         imported++;
       } catch (err) {
         if (err.code === 11000) {

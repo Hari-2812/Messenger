@@ -20,6 +20,10 @@ const logRoutes = require('./routes/logRoutes');
 const webhookRoutes = require('./routes/webhookRoutes');
 const testRoutes = require('./routes/testRoutes');
 const metaRoutes = require('./routes/metaRoutes');
+const watiRoutes = require('./routes/watiRoutes');
+const inboxRoutes = require('./routes/inboxRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
+const automationRoutes = require('./routes/automationRoutes');
 const { startDeliveryTimeoutJob } = require('./services/deliveryTimeoutJob');
 
 const app = express();
@@ -126,6 +130,11 @@ io.on('connection', (socket) => {
     console.log(`[Socket] ${socket.id} subscribed to logs`);
   });
 
+  socket.on('subscribe:inbox', () => {
+    socket.join('inbox');
+    console.log(`[Socket] ${socket.id} subscribed to inbox`);
+  });
+
   socket.on('disconnect', () => {
     console.log(`[Socket] Client disconnected: ${socket.id}`);
   });
@@ -150,6 +159,10 @@ app.use('/api/logs', logRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/test-whatsapp', testRoutes);
 app.use('/api/meta', metaRoutes);
+app.use('/api/wati', watiRoutes);
+app.use('/api/inbox', inboxRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/automation', automationRoutes);
 
 // ── 404 Handler ────────────────────────────────────────────────────────────────
 app.use((req, res) => {

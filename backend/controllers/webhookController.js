@@ -8,7 +8,10 @@
 
 const MessageLog = require('../models/MessageLog');
 const Campaign = require('../models/Campaign');
+const Contact = require('../models/Contact');
+const Conversation = require('../models/Conversation');
 const MetaProvider = require('../services/MetaProvider');
+const WatiService = require('../services/watiService');
 
 /**
  * GET /api/webhooks/meta
@@ -32,6 +35,31 @@ const verifyWebhook = (req, res) => {
 
   console.warn('[Webhook] ✗ Verification failed — invalid token or mode');
   res.status(403).json({ message: 'Webhook verification failed' });
+};
+
+const verifyWatiWebhook = (req, res) => {
+  const token = req.query.token || req.query.verify_token || req.query['hub.verify_token'];
+  const challenge = req.query.challenge || req.query['hub.challenge'] || 'ok';
+
+  if (token && token === process.env.WATI_WEBHOOK_VERIFY_TOKEN) {
+    return res.status(200).send(challenge);
+  }
+
+  return res.status(403).json({ message: 'WATI webhook verification failed' });
+};
+
+const handleWatiWebhook = async (req, res) => {
+  const rawBodyString = req.rawBody || JSON.stringify(req.body);
+  const signature = req.get('x-wati-signature') || req.get('x-hub-signature-256');
+  const valid = WatiService.verifyWebhookSignature(rawBodyString, signature, process.env.WATI_WEBHOOK_SECRET);
+
+  if (!valid) return res.status(403).json({ message: 'Invalid WATI webhook signature' });
+
+  res.status(200).json({ received: true });
+  const io = req.app.get('io');
+  processWatiWebhookAsync(req.body, io).catch((err) =>
+    console.error('[WATI Webhook] Async processing error:', err.message)
+  );
 };
 
 /**
@@ -215,4 +243,175 @@ const handleMessageStatus = async (statusObj, io = null) => {
   }
 };
 
-module.exports = { verifyWebhook, handleWebhook };
+const normalizeWatiStatus = (eventType, payloadStatus) => {
+  const value = String(payloadStatus || eventType || '').toLowerCase();
+  if (value.includes('deliver')) return 'delivered';
+  if (value.includes('read')) return 'read';
+  if (value.includes('fail')) return 'failed';
+  if (value.includes('sent')) return 'sent';
+  if (value.includes('received') || value.includes('reply')) return 'received';
+  return 'sent';
+};
+
+const getWatiMessageId = (payload) =>
+  payload.localMessageId ||
+  payload.local_message_id ||
+  payload.messageId ||
+  payload.message_id ||
+  payload.id ||
+  payload.watiMessageId ||
+  payload.data?.localMessageId ||
+  payload.data?.messageId;
+
+const processWatiWebhookAsync = async (body, io = null) => {
+  const events = Array.isArray(body) ? body : [body];
+
+  for (const event of events) {
+    const eventType = event.eventType || event.type || event.event || event.webhookType;
+    const data = event.data || event;
+    const status = normalizeWatiStatus(eventType, data.status);
+
+    if (status === 'received') {
+      await handleWatiIncoming(data, io);
+    } else {
+      await handleWatiStatus(data, status, io);
+    }
+  }
+};
+
+const handleWatiStatus = async (data, status, io = null) => {
+  const messageId = getWatiMessageId(data);
+  if (!messageId) return;
+
+  const messageLog = await MessageLog.findOne({
+    $or: [{ watiMessageId: messageId }, { localMessageId: messageId }, { metaMessageId: messageId }],
+  });
+  if (!messageLog) return;
+
+  const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
+  messageLog.status = status;
+  if (status === 'sent') messageLog.sentAt = timestamp;
+  if (status === 'delivered') messageLog.deliveredAt = timestamp;
+  if (status === 'read') messageLog.readAt = timestamp;
+  if (status === 'failed') messageLog.failureReason = data.error || data.errorMessage || data.reason || 'WATI delivery failed';
+  await messageLog.save();
+
+  await Contact.findByIdAndUpdate(messageLog.contactId, {
+    lastMessageStatus: status,
+    lastMessageAt: timestamp,
+  });
+
+  await updateCampaignCounters(messageLog.campaignId, io);
+
+  const conversation = await Conversation.findOne({ phone: messageLog.phone });
+  if (conversation) {
+    const message = conversation.messages.find(
+      (m) => m.localMessageId === messageLog.localMessageId || m.providerMessageId === messageId
+    );
+    if (message) message.status = status;
+    await conversation.save();
+    if (io) io.to('inbox').emit('inbox:status', { conversationId: conversation._id, messageId, status });
+  }
+};
+
+const handleWatiIncoming = async (data, io = null) => {
+  const phone = WatiService.normalizePhone(data.waId || data.phone || data.phoneNumber || data.from || data.sender);
+  if (!phone) return;
+
+  let contact = await Contact.findOne({ phone });
+  if (!contact) {
+    contact = await Contact.create({
+      name: data.senderName || data.name || phone,
+      phone,
+      source: 'WATI',
+      whatsappStatus: 'active',
+      lastMessageStatus: 'received',
+      lastMessageAt: new Date(),
+    });
+  } else {
+    contact.lastMessageStatus = 'received';
+    contact.lastMessageAt = new Date();
+    contact.whatsappStatus = 'active';
+    await contact.save();
+  }
+
+  const text = data.text || data.message || data.body || data.content || '';
+  const messageId = getWatiMessageId(data);
+  const conversation = await Conversation.findOneAndUpdate(
+    { phone },
+    {
+      $set: {
+        contactId: contact._id,
+        phone,
+        contactName: contact.name,
+        lastMessage: text,
+        lastMessageAt: new Date(),
+        lastMessageDirection: 'inbound',
+        status: 'open',
+      },
+      $push: {
+        messages: {
+          direction: 'inbound',
+          text,
+          status: 'received',
+          provider: 'wati',
+          providerMessageId: messageId,
+          raw: data,
+          timestamp: new Date(),
+        },
+      },
+    },
+    { upsert: true, new: true }
+  );
+
+  await MessageLog.create({
+    contactId: contact._id,
+    phone,
+    message: text,
+    status: 'read',
+    provider: 'wati',
+    direction: 'inbound',
+    watiMessageId: messageId,
+    timestamp: new Date(),
+  });
+
+  await Campaign.updateMany({ contactIds: contact._id }, { $inc: { replyCount: 1 } });
+
+  if (io) {
+    io.to('inbox').emit('inbox:message', { conversationId: conversation._id, message: conversation.messages.at(-1) });
+  }
+};
+
+const updateCampaignCounters = async (campaignId, io = null) => {
+  if (!campaignId) return;
+  const logs = await MessageLog.find({ campaignId });
+  const sentCount = logs.filter((l) => ['accepted', 'sent', 'delivered', 'read'].includes(l.status)).length;
+  const deliveredCount = logs.filter((l) => ['delivered', 'read'].includes(l.status)).length;
+  const readCount = logs.filter((l) => l.status === 'read').length;
+  const failedCount = logs.filter((l) => l.status === 'failed').length;
+  const pendingCount = logs.filter((l) => ['pending', 'accepted'].includes(l.status)).length;
+
+  const status = pendingCount > 0 ? 'sending' : failedCount === logs.length ? 'failed' : failedCount > 0 ? 'partial' : 'completed';
+  await Campaign.findByIdAndUpdate(campaignId, {
+    sentCount,
+    deliveredCount,
+    readCount,
+    failedCount,
+    status,
+  });
+
+  if (io) {
+    io.to(`campaign:${campaignId}`).emit('campaign:progress', {
+      campaignId,
+      sent: sentCount,
+      delivered: deliveredCount,
+      read: readCount,
+      failed: failedCount,
+      total: logs.length,
+      percent: Math.round(((sentCount + failedCount) / Math.max(logs.length, 1)) * 100),
+      status,
+    });
+  }
+};
+
+module.exports = { verifyWebhook, handleWebhook, verifyWatiWebhook, handleWatiWebhook };

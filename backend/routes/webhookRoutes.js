@@ -4,7 +4,12 @@
  */
 
 const express = require('express');
-const { verifyWebhook, handleWebhook } = require('../controllers/webhookController');
+const {
+  verifyWebhook,
+  handleWebhook,
+  verifyWatiWebhook,
+  handleWatiWebhook,
+} = require('../controllers/webhookController');
 
 const router = express.Router();
 
@@ -13,6 +18,7 @@ const router = express.Router();
  * Webhook verification endpoint
  */
 router.get('/meta', verifyWebhook);
+router.get('/wati', verifyWatiWebhook);
 router.get('/', verifyWebhook);
 
 /**
@@ -20,6 +26,7 @@ router.get('/', verifyWebhook);
  * Webhook event handler
  */
 router.post('/meta', handleWebhook);
+router.post('/wati', handleWatiWebhook);
 router.post('/', handleWebhook);
 
 module.exports = router;
