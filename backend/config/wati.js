@@ -10,7 +10,7 @@ const getWatiConfig = () => ({
   businessNumber: process.env.WATI_BUSINESS_NUMBER || '',
   webhookVerifyToken: process.env.WATI_WEBHOOK_VERIFY_TOKEN,
   webhookSecret: process.env.WATI_WEBHOOK_SECRET,
-  channel: process.env.WATI_CHANNEL || process.env.WATI_BUSINESS_NUMBER || null,
+  channel: process.env.WATI_CHANNEL || "whatsapp",
 });
 
 module.exports = {
