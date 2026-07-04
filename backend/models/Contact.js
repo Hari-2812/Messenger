@@ -13,6 +13,12 @@ const contactSchema = new mongoose.Schema(
       default: 'unknown',
     },
     watiContactId: { type: String, default: null },
+    syncStatus: {
+      type: String,
+      enum: ['pending', 'synced', 'failed'],
+      default: 'pending',
+    },
+    lastSyncedAt: { type: Date, default: null },
     lastMessageStatus: {
       type: String,
       enum: ['none', 'pending', 'accepted', 'sent', 'delivered', 'read', 'failed', 'received'],

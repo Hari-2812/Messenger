@@ -26,10 +26,15 @@ const syncToWatiIfEnabled = async (contact) => {
   try {
     const result = await watiService.syncContact(contact);
     contact.whatsappStatus = 'synced';
+    contact.syncStatus = 'synced';
+    contact.lastSyncedAt = new Date();
     if (result.watiContactId) contact.watiContactId = result.watiContactId;
+    // Extract WATI Contact ID if returned in API response data
+    if (result.raw?.contact?.id) contact.watiContactId = result.raw.contact.id;
     await contact.save();
   } catch (error) {
     contact.whatsappStatus = 'failed';
+    contact.syncStatus = 'failed';
     await contact.save();
     console.warn(`[WATI] Contact sync failed for ${contact._id}: ${error.message}`);
   }

@@ -2,7 +2,6 @@ import axios from 'axios';
 
 // In development, Vite proxies /api/* to localhost:5000 — so baseURL is just '/api'
 // In production, VITE_API_URL must include the /api prefix (e.g. https://backend.onrender.com/api)
-// DO NOT append '/api' here — the env var already contains it.
 const BASE_URL = import.meta.env.PROD
   ? (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '')
   : '/api';
@@ -14,35 +13,27 @@ if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
   );
 }
 
-// Debug logging — helps diagnose URL issues in all environments
-console.log('[API] baseURL:', BASE_URL);
-
 const API = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 30000, // 30 second timeout
+  timeout: 30000,
 });
 
 // Attach JWT on every request
 API.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Global response error handler
+// Global 401 handler
 API.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid — force re-login
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
-      }
+      if (window.location.pathname !== '/login') window.location.href = '/login';
     }
     return Promise.reject(error);
   }
@@ -68,10 +59,11 @@ export const contactsAPI = {
 };
 
 export const templatesAPI = {
-  getAll: (params) => API.get('/templates', { params }),  // ?source=local|all
+  getAll: (params) => API.get('/templates', { params }),
   create: (data) => API.post('/templates', data),
   update: (id, data) => API.put(`/templates/${id}`, data),
   delete: (id) => API.delete(`/templates/${id}`),
+  syncWati: (params) => API.get('/templates/sync/wati', { params }),
 };
 
 export const campaignsAPI = {
@@ -83,18 +75,18 @@ export const campaignsAPI = {
 };
 
 export const logsAPI = {
-  getAll: (params) => API.get('/logs', { params }),        // ?page=1&limit=50&campaignId=
+  getAll: (params) => API.get('/logs', { params }),
   getDashboard: () => API.get('/logs/dashboard'),
 };
 
 export const metaAPI = {
-  getTemplates: () => API.get('/meta/templates'),           // APPROVED only — Campaign dropdown
-  getAllTemplates: () => API.get('/meta/templates/all'),    // All statuses — Templates page
+  getTemplates: () => API.get('/meta/templates'),
+  getAllTemplates: () => API.get('/meta/templates/all'),
 };
 
 export const watiAPI = {
   getSettings: () => API.get('/wati/settings'),
-  syncTemplates: (params) => API.get('/wati/templates', { params }),
+  syncTemplates: (params) => API.get('/templates/sync/wati', { params }),
 };
 
 export const inboxAPI = {
