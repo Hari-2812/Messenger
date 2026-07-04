@@ -1,7 +1,7 @@
 const MetaProvider = require('./providers/metaProvider');
 const WatiProvider = require('./providers/watiProvider');
 
-const getProvider = () => (process.env.WHATSAPP_PROVIDER || 'meta').toLowerCase();
+const getProvider = () => (process.env.WHATSAPP_PROVIDER || 'wati').toLowerCase();
 
 const sendMessage = async (phone, message) => {
   if (getProvider() === 'wati') {

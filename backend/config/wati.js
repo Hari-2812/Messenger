@@ -1,6 +1,6 @@
 const normalizeBaseUrl = (value) => String(value || '').replace(/\/+$/, '');
 
-const WATI_API_BASE_URL = normalizeBaseUrl(process.env.WATI_API_ENDPOINT);
+const WATI_API_BASE_URL = normalizeBaseUrl(process.env.WATI_API_URL || process.env.WATI_API_ENDPOINT);
 const WATI_API_VERSION = 'v3';
 
 const getWatiConfig = () => ({
@@ -10,7 +10,7 @@ const getWatiConfig = () => ({
   businessNumber: process.env.WATI_BUSINESS_NUMBER || '',
   webhookVerifyToken: process.env.WATI_WEBHOOK_VERIFY_TOKEN,
   webhookSecret: process.env.WATI_WEBHOOK_SECRET,
-  channel: process.env.WATI_CHANNEL || "whatsapp",
+  channel: process.env.WATI_CHANNEL || 'whatsapp',
 });
 
 module.exports = {

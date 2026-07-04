@@ -4,7 +4,7 @@ const Template = require('../models/Template');
 // @route   GET /api/templates?source=local|all
 const getTemplates = async (req, res) => {
   const source = req.query.source || 'local';
-  const filter = source === 'all' ? {} : { source: 'local' };
+  const filter = source === 'all' ? {} : { source };
 
   const templates = await Template.find(filter).sort({ createdAt: -1 });
   res.json(templates);
@@ -39,7 +39,7 @@ const updateTemplate = async (req, res) => {
 
   if (template.source !== 'local') {
     return res.status(400).json({
-      message: 'Meta-synced templates cannot be edited here. Edit them in Meta Business Manager.',
+      message: 'WATI-synced templates cannot be edited here. Edit them in WATI or create a local CRM template instead.',
     });
   }
 
@@ -61,7 +61,7 @@ const deleteTemplate = async (req, res) => {
 
   if (template.source !== 'local') {
     return res.status(400).json({
-      message: 'Meta-synced templates cannot be deleted here. Manage them in Meta Business Manager.',
+      message: 'WATI-synced templates cannot be deleted here. Manage them in WATI.',
     });
   }
 

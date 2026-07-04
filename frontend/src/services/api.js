@@ -79,11 +79,6 @@ export const logsAPI = {
   getDashboard: () => API.get('/logs/dashboard'),
 };
 
-export const metaAPI = {
-  getTemplates: () => API.get('/meta/templates'),
-  getAllTemplates: () => API.get('/meta/templates/all'),
-};
-
 export const watiAPI = {
   getSettings: () => API.get('/wati/settings'),
   syncTemplates: (params) => API.get('/templates/sync/wati', { params }),

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { campaignsAPI, contactsAPI, metaAPI } from '../services/api';
+import { campaignsAPI, contactsAPI, templatesAPI } from '../services/api';
 import { getSocket, connectSocket } from '../services/socket';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -28,7 +28,7 @@ const CONTACT_FIELDS = [
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
- * Extract {{1}}, {{2}}, ... placeholders from a Meta template.
+ * Extract {{1}}, {{2}}, ... placeholders from a WATI template.
  * Uses paramCount from backend if available, otherwise counts from bodyText.
  */
 const extractTemplateParams = (template) => {
@@ -81,7 +81,7 @@ const CampaignProgress = ({ progress }) => (
 const Campaigns = () => {
   const [campaigns, setCampaigns]           = useState([]);
   const [contacts, setContacts]             = useState([]);
-  const [metaTemplates, setMetaTemplates]   = useState([]);
+  const [watiTemplates, setWatiTemplates]   = useState([]);
   const [loading, setLoading]               = useState(true);
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [error, setError]                   = useState('');
@@ -107,17 +107,17 @@ const Campaigns = () => {
 
   // ── Data Fetching ───────────────────────────────────────────────────────────
 
-  const fetchMetaTemplates = useCallback(async (showToast = false) => {
+  const fetchWatiTemplates = useCallback(async (showToast = false) => {
     setTemplatesLoading(true);
     try {
-      const { data } = await metaAPI.getTemplates();
-      setMetaTemplates(data.templates || []);
+      const { data } = await templatesAPI.syncWati({ all: true });
+      setWatiTemplates(Array.isArray(data?.templates) ? data.templates : []);
       if (showToast) {
-        setSuccess(`✅ Templates refreshed — ${data.total} approved template(s) loaded`);
+        setSuccess(`✅ Templates refreshed — ${(data?.templates || []).length} approved template(s) loaded`);
         setTimeout(() => setSuccess(''), 4000);
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load Meta templates');
+      setError(err.response?.data?.message || 'Failed to load WATI templates');
     } finally {
       setTemplatesLoading(false);
     }
@@ -180,8 +180,8 @@ const Campaigns = () => {
 
   useEffect(() => {
     fetchData();
-    fetchMetaTemplates();
-  }, [fetchData, fetchMetaTemplates]);
+    fetchWatiTemplates();
+  }, [fetchData, fetchWatiTemplates]);
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -228,7 +228,7 @@ const Campaigns = () => {
   // ── Template Selection ──────────────────────────────────────────────────────
 
   const handleTemplateChange = (e) => {
-    const tpl = metaTemplates.find((t) => t.name === e.target.value);
+    const tpl = watiTemplates.find((t) => t.name === e.target.value);
     const params = extractTemplateParams(tpl);
     setTemplateParams(params);
     setForm({
@@ -246,11 +246,11 @@ const Campaigns = () => {
   const handlePreview = () => {
     setError('');
     if (!form.metaTemplateName || form.contactIds.length === 0) {
-      setError('Select a Meta template and at least one contact');
+      setError('Select a WATI template and at least one contact');
       return;
     }
 
-    const selectedTemplate = metaTemplates.find(
+    const selectedTemplate = watiTemplates.find(
       (t) => t.name === form.metaTemplateName
     );
 
@@ -328,7 +328,7 @@ const Campaigns = () => {
     }
   };
 
-  const selectedTemplateInfo = metaTemplates.find(
+  const selectedTemplateInfo = watiTemplates.find(
     (t) => t.name === form.metaTemplateName
   );
 
@@ -385,16 +385,16 @@ const Campaigns = () => {
             />
           </div>
 
-          {/* Meta Template Selection */}
+          {/* WATI Template Selection */}
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-sm font-medium text-gray-700">
-                Select Meta Template
+                Select WATI Template
               </label>
               <button
                 id="refresh-templates-btn"
                 type="button"
-                onClick={() => fetchMetaTemplates(true)}
+                onClick={() => fetchWatiTemplates(true)}
                 disabled={templatesLoading}
                 className="flex items-center gap-1.5 text-xs font-medium text-primary-600 hover:text-primary-800 border border-primary-200 hover:border-primary-400 bg-primary-50 hover:bg-primary-100 rounded-md px-2.5 py-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -410,17 +410,17 @@ const Campaigns = () => {
               </button>
             </div>
 
-            {metaTemplates.length === 0 && !templatesLoading ? (
+            {watiTemplates.length === 0 && !templatesLoading ? (
               <div className="border border-dashed border-gray-300 rounded-lg p-4 text-center text-sm text-gray-500">
-                No approved Meta templates found.{' '}
+                No approved WATI templates found.{' '}
                 <button
                   type="button"
-                  onClick={() => fetchMetaTemplates(true)}
+                  onClick={() => fetchWatiTemplates(true)}
                   className="text-primary-600 hover:underline"
                 >
                   Click Refresh
                 </button>{' '}
-                to load templates from Meta.
+                to load templates from WATI.
               </div>
             ) : (
               <select
@@ -429,8 +429,8 @@ const Campaigns = () => {
                 onChange={handleTemplateChange}
                 className="input-field"
               >
-                <option value="">Choose Meta template…</option>
-                {metaTemplates.map((t) => (
+                <option value="">Choose WATI template…</option>
+                {watiTemplates.map((t) => (
                   <option key={`${t.name}-${t.language}`} value={t.name}>
                     {t.name} — {t.category} ({t.language})
                     {t.paramCount > 0 ? ` · ${t.paramCount} variable(s)` : ''}
@@ -635,7 +635,7 @@ const Campaigns = () => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="text-left py-3 px-4 font-medium text-gray-500">Campaign</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-500">Meta Template</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-500">WATI Template</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-500">Variables</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-500">Total</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-500">Sent</th>

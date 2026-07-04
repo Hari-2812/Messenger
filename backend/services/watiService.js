@@ -17,27 +17,25 @@ const normalizePhone = (phone) =>
 // TEMPLATE HELPERS
 // ===============================
 
+const getTemplateComponents = (template) => {
+  const components = template.components || template.template?.components || [];
+  return Array.isArray(components) ? components : [];
+};
+
+const pickTemplateText = (components, type) => {
+  const component = components.find((c) => String(c.type || '').toUpperCase() === type);
+  return component?.text || component?.body || component?.content || component?.value || '';
+};
+
 const getTemplateBody = (template) => {
-
-  const components =
-    template.components ||
-    template.template?.components ||
-    [];
-
-
-  const body = components.find(
-    c => String(c.type || '').toUpperCase() === 'BODY'
-  );
-
-
+  const components = getTemplateComponents(template);
   return (
-    body?.text ||
+    pickTemplateText(components, 'BODY') ||
     template.body ||
     template.bodyText ||
     template.templateBody ||
     ''
   );
-
 };
 
 
@@ -64,50 +62,33 @@ const countVariables = (text) => {
 
 
 const mapTemplate = (template)=>{
+  const components = getTemplateComponents(template);
+  const bodyText = getTemplateBody(template);
+  const header = pickTemplateText(components, 'HEADER') || template.header || '';
+  const footer = pickTemplateText(components, 'FOOTER') || template.footer || '';
+  const buttons = Array.isArray(template.buttons)
+    ? template.buttons
+    : Array.isArray(components.find((c) => String(c.type || '').toUpperCase() === 'BUTTONS')?.buttons)
+      ? components.find((c) => String(c.type || '').toUpperCase() === 'BUTTONS').buttons
+      : [];
+  const variableMatches = [...String(`${header} ${bodyText} ${footer}`).matchAll(/\{\{(\d+)\}\}/g)];
+  const variables = Array.from(new Set(variableMatches.map((match) => match[0])));
 
- const bodyText=getTemplateBody(template);
-
-
- return {
-
-  id:
-   template.id ||
-   template.name,
-
-
-  name:
-   template.elementName ||
-   template.name ||
-   template.templateName,
-
-
-  status:
-   String(
-    template.status || "UNKNOWN"
-   ).toUpperCase(),
-
-
-  language:
-   template.language ||
-   "en_US",
-
-
-  category:
-   template.category ||
-   "MARKETING",
-
-
-  bodyText,
-
-
-  paramCount:
-   countVariables(bodyText),
-
-
-  raw:template
-
- };
-
+  return {
+    id: template.id || template.templateId || template.name,
+    name: template.elementName || template.name || template.templateName || template.title,
+    status: String(template.status || 'UNKNOWN').toUpperCase(),
+    language: template.language || 'en_US',
+    category: template.category || 'MARKETING',
+    header,
+    body: bodyText,
+    bodyText,
+    footer,
+    buttons,
+    variables,
+    paramCount: countVariables(bodyText),
+    raw: template,
+  };
 };
 
 

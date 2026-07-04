@@ -29,7 +29,6 @@ const syncToWatiIfEnabled = async (contact) => {
     contact.syncStatus = 'synced';
     contact.lastSyncedAt = new Date();
     if (result.watiContactId) contact.watiContactId = result.watiContactId;
-    // Extract WATI Contact ID if returned in API response data
     if (result.raw?.contact?.id) contact.watiContactId = result.raw.contact.id;
     await contact.save();
   } catch (error) {
@@ -40,6 +39,34 @@ const syncToWatiIfEnabled = async (contact) => {
   }
 
   return contact;
+};
+
+const processContactsInQueue = async (contacts, batchSize = 25) => {
+  const results = { imported: 0, synced: 0, failed: 0, errors: [] };
+
+  for (let index = 0; index < contacts.length; index += batchSize) {
+    const batch = contacts.slice(index, index + batchSize);
+    const batchResults = await Promise.allSettled(
+      batch.map(async (contactPayload) => {
+        const contact = await Contact.create(contactPayload);
+        await syncToWatiIfEnabled(contact);
+        return contact;
+      })
+    );
+
+    batchResults.forEach((result) => {
+      if (result.status === 'fulfilled') {
+        results.imported += 1;
+        if (result.value?.syncStatus === 'synced') results.synced += 1;
+        else results.failed += 1;
+      } else {
+        results.failed += 1;
+        results.errors.push(result.reason?.message || 'Unknown contact import failure');
+      }
+    });
+  }
+
+  return results;
 };
 
 // @desc    Get all contacts (paginated + search)
@@ -161,7 +188,7 @@ const importContacts = async (req, res) => {
   const filePath = req.file.path;
   const results = [];
   const errors = [];
-  let imported = 0;
+  const pendingContacts = [];
   let skipped = 0;
 
   try {
@@ -198,17 +225,7 @@ const importContacts = async (req, res) => {
         continue;
       }
 
-      try {
-        const contact = await Contact.create({ name, phone: phoneCheck.normalized, email, tags, source });
-        await syncToWatiIfEnabled(contact);
-        imported++;
-      } catch (err) {
-        if (err.code === 11000) {
-          skipped++;
-        } else {
-          errors.push({ row, reason: err.message });
-        }
-      }
+      pendingContacts.push({ name, phone: phoneCheck.normalized, email, tags, source });
     }
   } finally {
     // Always clean up temp file
@@ -219,12 +236,18 @@ const importContacts = async (req, res) => {
     }
   }
 
+  const batchResults = pendingContacts.length > 0
+    ? await processContactsInQueue(pendingContacts)
+    : { imported: 0, synced: 0, failed: 0, errors: [] };
+
   res.json({
     message: 'Import completed',
-    imported,
+    imported: batchResults.imported,
+    synced: batchResults.synced,
+    failed: batchResults.failed,
     skipped,
-    errors: errors.length,
-    errorDetails: errors.slice(0, 10),
+    errors: errors.length + batchResults.errors.length,
+    errorDetails: [...errors.slice(0, 10), ...batchResults.errors.slice(0, 10)],
   });
 };
 

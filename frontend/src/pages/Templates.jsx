@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
-import { metaAPI, templatesAPI } from '../services/api';
+import { templatesAPI } from '../services/api';
 
-// ── Meta Template Card ───────────────────────────────────────────────────────
+// ── WATI Template Card ───────────────────────────────────────────────────────
 
-const metaStatusConfig = {
+const watiStatusConfig = {
   APPROVED: { color: 'bg-green-100 text-green-700',   icon: '✅', label: 'Approved' },
   PENDING:  { color: 'bg-yellow-100 text-yellow-700', icon: '⏳', label: 'Pending' },
   REJECTED: { color: 'bg-red-100 text-red-700',       icon: '❌', label: 'Rejected' },
@@ -55,16 +55,16 @@ const LocalTemplateCard = ({ template, onEdit, onDelete }) => (
 );
 
 const Templates = () => {
-  // Tab: 'meta' | 'local'
-  const [activeTab, setActiveTab] = useState('meta');
+  // Tab: 'wati' | 'local'
+  const [activeTab, setActiveTab] = useState('wati');
 
-  // Meta templates state
-  const [metaTemplates, setMetaTemplates] = useState([]);
-  const [metaLoading, setMetaLoading] = useState(true);
-  const [metaError, setMetaError] = useState('');
-  const [metaSuccess, setMetaSuccess] = useState('');
-  const [metaFilter, setMetaFilter] = useState('ALL');
-  const [metaSearch, setMetaSearch] = useState('');
+  // WATI templates state
+  const [watiTemplates, setWatiTemplates] = useState([]);
+  const [watiLoading, setWatiLoading] = useState(true);
+  const [watiError, setWatiError] = useState('');
+  const [watiSuccess, setWatiSuccess] = useState('');
+  const [watiFilter, setWatiFilter] = useState('ALL');
+  const [watiSearch, setWatiSearch] = useState('');
 
   // Local templates state
   const [localTemplates, setLocalTemplates] = useState([]);
@@ -75,22 +75,23 @@ const Templates = () => {
   const [editingLocalId, setEditingLocalId] = useState(null);
   const [localForm, setLocalForm] = useState({ title: '', message: '' });
 
-  // ── Meta Templates ─────────────────────────────────────────────────────────
+  // ── WATI Templates ─────────────────────────────────────────────────────────
 
-  const fetchMetaTemplates = useCallback(async (showSuccess = false) => {
-    setMetaLoading(true);
-    setMetaError('');
+  const fetchWatiTemplates = useCallback(async (showSuccess = false) => {
+    setWatiLoading(true);
+    setWatiError('');
     try {
-      const { data } = await metaAPI.getAllTemplates();
-      setMetaTemplates(data.templates || []);
+      const { data } = await templatesAPI.syncWati({ all: true });
+      const templates = Array.isArray(data?.templates) ? data.templates : [];
+      setWatiTemplates(templates);
       if (showSuccess) {
-        setMetaSuccess(`✅ Synced — ${data.total} template(s) loaded from Meta`);
-        setTimeout(() => setMetaSuccess(''), 4000);
+        setWatiSuccess(`✅ Synced — ${data.total || templates.length} template(s) loaded from WATI`);
+        setTimeout(() => setWatiSuccess(''), 4000);
       }
     } catch (err) {
-      setMetaError(err.response?.data?.message || 'Failed to load Meta templates');
+      setWatiError(err.response?.data?.message || 'Failed to load WATI templates');
     } finally {
-      setMetaLoading(false);
+      setWatiLoading(false);
     }
   }, []);
 
@@ -110,9 +111,9 @@ const Templates = () => {
   }, []);
 
   useEffect(() => {
-    fetchMetaTemplates();
+    fetchWatiTemplates();
     fetchLocalTemplates();
-  }, [fetchMetaTemplates, fetchLocalTemplates]);
+  }, [fetchWatiTemplates, fetchLocalTemplates]);
 
   const resetLocalForm = () => {
     setLocalForm({ title: '', message: '' });
@@ -159,17 +160,17 @@ const Templates = () => {
     }
   };
 
-  // ── Meta filtering ─────────────────────────────────────────────────────────
-  const filteredMeta = metaTemplates.filter((t) => {
-    const matchesStatus = metaFilter === 'ALL' || t.status === metaFilter;
+  // ── WATI filtering ─────────────────────────────────────────────────────────
+  const filteredWati = watiTemplates.filter((t) => {
+    const matchesStatus = watiFilter === 'ALL' || t.status === watiFilter;
     const matchesSearch =
-      !metaSearch ||
-      t.name.toLowerCase().includes(metaSearch.toLowerCase()) ||
-      t.category.toLowerCase().includes(metaSearch.toLowerCase());
+      !watiSearch ||
+      t.name.toLowerCase().includes(watiSearch.toLowerCase()) ||
+      (t.category || '').toLowerCase().includes(watiSearch.toLowerCase());
     return matchesStatus && matchesSearch;
   });
 
-  const metaCounts = metaTemplates.reduce((acc, t) => {
+  const watiCounts = watiTemplates.reduce((acc, t) => {
     acc[t.status] = (acc[t.status] || 0) + 1;
     return acc;
   }, {});
@@ -179,18 +180,18 @@ const Templates = () => {
       {/* ── Tab Bar ── */}
       <div className="flex items-center border-b border-gray-200">
         <button
-          id="meta-templates-tab"
-          onClick={() => setActiveTab('meta')}
+          id="wati-templates-tab"
+          onClick={() => setActiveTab('wati')}
           className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors -mb-px ${
-            activeTab === 'meta'
+            activeTab === 'wati'
               ? 'border-primary-600 text-primary-700'
               : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
-          📱 Meta Templates
-          {metaTemplates.length > 0 && (
+          📱 WATI Templates
+          {watiTemplates.length > 0 && (
             <span className="ml-2 bg-primary-100 text-primary-700 text-xs px-1.5 py-0.5 rounded-full">
-              {metaTemplates.length}
+              {watiTemplates.length}
             </span>
           )}
         </button>
@@ -212,17 +213,17 @@ const Templates = () => {
         </button>
       </div>
 
-      {/* ── META TEMPLATES TAB ── */}
-      {activeTab === 'meta' && (
+      {/* ── WATI TEMPLATES TAB ── */}
+      {activeTab === 'wati' && (
         <div className="space-y-6">
-          {metaError && (
+          {watiError && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-              {metaError}
+              {watiError}
             </div>
           )}
-          {metaSuccess && (
+          {watiSuccess && (
             <div className="p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">
-              {metaSuccess}
+              {watiSuccess}
             </div>
           )}
 
@@ -230,34 +231,25 @@ const Templates = () => {
           <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
             <span>ℹ️</span>
             <span>
-              <strong>Meta-approved templates</strong> are created and managed in{' '}
-              <a
-                href="https://business.facebook.com/latest/whatsapp_manager/message_templates"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline hover:no-underline"
-              >
-                Meta Business Manager
-              </a>
-              . They cannot be edited here — only used in campaigns.
+              <strong>WATI templates</strong> are synced from your WATI account and can be used in campaigns. They are read-only in this CRM.
             </span>
           </div>
 
           {/* Header */}
           <div className="flex flex-wrap justify-between items-center gap-4">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Meta WhatsApp Templates</h2>
+              <h2 className="text-lg font-semibold text-gray-900">WATI WhatsApp Templates</h2>
               <p className="text-sm text-gray-500 mt-0.5">
-                Live from your Meta Business Account · {metaTemplates.length} total
+                Synced from WATI · {watiTemplates.length} total
               </p>
             </div>
             <button
               id="sync-templates-btn"
-              onClick={() => fetchMetaTemplates(true)}
-              disabled={metaLoading}
+              onClick={() => fetchWatiTemplates(true)}
+              disabled={watiLoading}
               className="flex items-center gap-2 btn-primary disabled:opacity-50"
             >
-              {metaLoading ? (
+              {watiLoading ? (
                 <>
                   <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -266,34 +258,34 @@ const Templates = () => {
                   Syncing…
                 </>
               ) : (
-                <>🔄 Sync from Meta</>
+                <>🔄 Sync from WATI</>
               )}
             </button>
           </div>
 
           {/* Status filter pills */}
-          {metaTemplates.length > 0 && (
+          {watiTemplates.length > 0 && (
             <div className="flex flex-wrap gap-2">
               <button
-                onClick={() => setMetaFilter('ALL')}
+                onClick={() => setWatiFilter('ALL')}
                 className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                  metaFilter === 'ALL' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  watiFilter === 'ALL' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                All ({metaTemplates.length})
+                All ({watiTemplates.length})
               </button>
-              {Object.entries(metaStatusConfig).map(([status, cfg]) =>
-                metaCounts[status] ? (
+              {Object.entries(watiStatusConfig).map(([status, cfg]) =>
+                watiCounts[status] ? (
                   <button
                     key={status}
-                    onClick={() => setMetaFilter(metaFilter === status ? 'ALL' : status)}
+                    onClick={() => setWatiFilter(watiFilter === status ? 'ALL' : status)}
                     className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                      metaFilter === status
+                      watiFilter === status
                         ? cfg.color + ' ring-2 ring-offset-1 ring-current'
                         : cfg.color + ' opacity-70 hover:opacity-100'
                     }`}
                   >
-                    {cfg.icon} {cfg.label} ({metaCounts[status]})
+                    {cfg.icon} {cfg.label} ({watiCounts[status]})
                   </button>
                 ) : null
               )}
@@ -301,31 +293,31 @@ const Templates = () => {
           )}
 
           {/* Search */}
-          {metaTemplates.length > 0 && (
+          {watiTemplates.length > 0 && (
             <input
               type="text"
-              value={metaSearch}
-              onChange={(e) => setMetaSearch(e.target.value)}
+              value={watiSearch}
+              onChange={(e) => setWatiSearch(e.target.value)}
               className="input-field w-full md:w-80"
               placeholder="Search by name or category…"
             />
           )}
 
           {/* Template Grid */}
-          {metaLoading ? (
+          {watiLoading ? (
             <div className="flex items-center justify-center h-48">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
             </div>
-          ) : filteredMeta.length === 0 ? (
+          ) : filteredWati.length === 0 ? (
             <div className="card text-center py-12 text-gray-500">
-              {metaTemplates.length === 0
-                ? 'No templates found in your Meta Business Account. Create templates in Meta Business Manager and click Sync.'
+              {watiTemplates.length === 0
+                ? 'No templates found in your WATI account. Sync from WATI to load them.'
                 : 'No templates match the current filter.'}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredMeta.map((template) => {
-                const statusCfg = metaStatusConfig[template.status] || metaStatusConfig.PENDING;
+              {filteredWati.map((template) => {
+                const statusCfg = watiStatusConfig[template.status] || watiStatusConfig.PENDING;
                 const catColor = categoryColors[template.category] || 'bg-gray-100 text-gray-600';
                 return (
                   <div
@@ -353,7 +345,7 @@ const Templates = () => {
                             🌐 {template.language}
                           </span>
                           <span className="text-xs bg-blue-50 text-blue-500 px-2 py-0.5 rounded-full">
-                            📱 Meta
+                            📱 WATI
                           </span>
                         </div>
                       </div>
@@ -380,7 +372,7 @@ const Templates = () => {
 
                     {template.status === 'APPROVED' && (
                       <p className="text-xs text-green-600 mt-2 font-medium">
-                        ✓ Available for campaign campaigns
+                        ✓ Available for campaigns
                       </p>
                     )}
                   </div>
@@ -410,8 +402,7 @@ const Templates = () => {
             <span>📝</span>
             <span>
               <strong>Local CRM templates</strong> are stored in your CRM database for reference and
-              note-taking. They are <em>not</em> sent via WhatsApp — to send via WhatsApp, create and
-              approve templates in Meta Business Manager.
+              note-taking. They are <em>not</em> sent via WhatsApp — to send via WhatsApp, sync and use approved WATI templates.
             </span>
           </div>
 

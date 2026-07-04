@@ -8,17 +8,21 @@ const PROVIDER_ENV = {
     'WHATSAPP_APP_SECRET',
     'WHATSAPP_WEBHOOK_VERIFY_TOKEN',
   ],
-  wati: ['WATI_API_ENDPOINT', 'WATI_ACCESS_TOKEN', 'WATI_WEBHOOK_VERIFY_TOKEN'],
+  wati: ['WATI_ACCESS_TOKEN', 'WATI_WEBHOOK_VERIFY_TOKEN'],
 };
 
 const validateEnv = () => {
-  const provider = (process.env.WHATSAPP_PROVIDER || 'meta').toLowerCase();
+  const provider = (process.env.WHATSAPP_PROVIDER || 'wati').toLowerCase();
   if (!PROVIDER_ENV[provider]) {
     throw new Error('[Env] WHATSAPP_PROVIDER must be either "meta" or "wati"');
   }
 
   const required = [...BASE_REQUIRED_ENV, ...PROVIDER_ENV[provider]];
   const missing = required.filter((key) => !process.env[key]);
+
+  if (provider === 'wati' && !process.env.WATI_API_URL && !process.env.WATI_API_ENDPOINT) {
+    missing.push('WATI_API_URL or WATI_API_ENDPOINT');
+  }
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
