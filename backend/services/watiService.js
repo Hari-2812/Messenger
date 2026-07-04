@@ -3,7 +3,14 @@ const { getWatiConfig } = require('../config/wati');
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = [1000, 2000, 4000];
-const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+
+const RETRYABLE_STATUSES = new Set([
+  429,
+  500,
+  502,
+  503,
+  504,
+]);
 
 const sleep = (ms) =>
   new Promise((resolve) => setTimeout(resolve, ms));
@@ -13,138 +20,361 @@ const normalizePhone = (phone) =>
   String(phone || '').replace(/\D/g, '');
 
 
-// ===============================
+
+// =================================================
+// VALUE NORMALIZER (FIXES WATI OBJECT VALUES)
+// =================================================
+
+const normalizeValue = (value, fallback = '') => {
+
+  if (!value) return fallback;
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (typeof value === 'object') {
+
+    return (
+      value.value ||
+      value.key ||
+      value.text ||
+      value.name ||
+      fallback
+    );
+
+  }
+
+
+  return String(value);
+
+};
+
+
+
+// =================================================
 // TEMPLATE HELPERS
-// ===============================
+// =================================================
 
 const getTemplateComponents = (template) => {
-  const components = template.components || template.template?.components || [];
-  return Array.isArray(components) ? components : [];
+
+  const components =
+    template.components ||
+    template.template?.components ||
+    [];
+
+
+  return Array.isArray(components)
+    ? components
+    : [];
+
 };
+
+
 
 const pickTemplateText = (components, type) => {
-  const component = components.find((c) => String(c.type || '').toUpperCase() === type);
-  return component?.text || component?.body || component?.content || component?.value || '';
+
+  const component =
+    components.find(
+      (c) =>
+        String(c.type || '')
+        .toUpperCase() === type
+    );
+
+
+  return (
+    normalizeValue(component?.text) ||
+    normalizeValue(component?.body) ||
+    normalizeValue(component?.content) ||
+    normalizeValue(component?.value)
+  );
+
 };
 
+
+
 const getTemplateBody = (template) => {
-  const components = getTemplateComponents(template);
+
+  const components =
+    getTemplateComponents(template);
+
+
   return (
-    pickTemplateText(components, 'BODY') ||
-    template.body ||
-    template.bodyText ||
-    template.templateBody ||
+
+    pickTemplateText(
+      components,
+      'BODY'
+    )
+
+    ||
+
+    normalizeValue(template.body)
+
+    ||
+
+    normalizeValue(template.bodyText)
+
+    ||
+
+    normalizeValue(template.templateBody)
+
+    ||
+
     ''
+
   );
+
 };
 
 
 
 const countVariables = (text) => {
 
- const matches =
- [...String(text || '')
- .matchAll(/\{\{(\d+)\}\}/g)];
+  const matches =
+    [
+      ...String(text || '')
+        .matchAll(/\{\{(\d+)\}\}/g)
+    ];
 
 
- if(!matches.length) return 0;
+  if (!matches.length)
+    return 0;
 
 
- return Math.max(
-   ...matches.map(
-    m=>parseInt(m[1],10)
-   )
- );
-
-};
-
-
-
-
-const mapTemplate = (template)=>{
-  const components = getTemplateComponents(template);
-  const bodyText = getTemplateBody(template);
-  const header = pickTemplateText(components, 'HEADER') || template.header || '';
-  const footer = pickTemplateText(components, 'FOOTER') || template.footer || '';
-  const buttons = Array.isArray(template.buttons)
-    ? template.buttons
-    : Array.isArray(components.find((c) => String(c.type || '').toUpperCase() === 'BUTTONS')?.buttons)
-      ? components.find((c) => String(c.type || '').toUpperCase() === 'BUTTONS').buttons
-      : [];
-  const variableMatches = [...String(`${header} ${bodyText} ${footer}`).matchAll(/\{\{(\d+)\}\}/g)];
-  const variables = Array.from(new Set(variableMatches.map((match) => match[0])));
-
-  return {
-    id: template.id || template.templateId || template.name,
-    name: template.elementName || template.name || template.templateName || template.title,
-    status: String(template.status || 'UNKNOWN').toUpperCase(),
-    language: template.language || 'en_US',
-    category: template.category || 'MARKETING',
-    header,
-    body: bodyText,
-    bodyText,
-    footer,
-    buttons,
-    variables,
-    paramCount: countVariables(bodyText),
-    raw: template,
-  };
-};
-
-
-
-// ===============================
-// URL BUILDER
-// ===============================
-
-
-const buildUrl = (path,query={})=>{
-
-
- const {baseUrl}=getWatiConfig();
-
-
- if(!baseUrl){
-
-  throw new Error(
-   "WATI_API_ENDPOINT is not configured"
+  return Math.max(
+    ...matches.map(
+      (m) => parseInt(m[1], 10)
+    )
   );
 
- }
-
-
- // FIXED WATI API VERSION
-
- const url = new URL(
-
-  `${baseUrl}/api/v1/${path.replace(/^\/+/,'')}`
-
- );
+};
 
 
 
- Object.entries(query)
- .forEach(([key,value])=>{
+
+// =================================================
+// MAP WATI TEMPLATE
+// =================================================
+
+const mapTemplate = (template) => {
 
 
-  if(
-   value!==undefined &&
-   value!==null &&
-   value!==""
-  ){
+  const components =
+    getTemplateComponents(template);
 
-   url.searchParams.set(
-    key,
-    value
-   );
+
+  const bodyText =
+    getTemplateBody(template);
+
+
+  const header =
+    pickTemplateText(
+      components,
+      'HEADER'
+    )
+    ||
+    normalizeValue(template.header);
+
+
+
+  const footer =
+    pickTemplateText(
+      components,
+      'FOOTER'
+    )
+    ||
+    normalizeValue(template.footer);
+
+
+
+  const buttonComponent =
+    components.find(
+      (c) =>
+        String(c.type || '')
+        .toUpperCase() === 'BUTTONS'
+    );
+
+
+  const buttons =
+    Array.isArray(template.buttons)
+
+      ?
+
+      template.buttons
+
+      :
+
+      Array.isArray(buttonComponent?.buttons)
+
+        ?
+
+        buttonComponent.buttons
+
+        :
+
+        [];
+
+
+
+  const variables =
+    Array.from(
+
+      new Set(
+
+        [
+          ...String(
+            `${header} ${bodyText} ${footer}`
+          )
+            .matchAll(/\{\{(\d+)\}\}/g)
+
+        ]
+          .map((m) => m[0])
+
+      )
+
+    );
+
+
+
+  return {
+
+
+    id:
+      normalizeValue(
+        template.id ||
+        template.templateId ||
+        template.name
+      ),
+
+
+
+    name:
+      normalizeValue(
+        template.elementName ||
+        template.name ||
+        template.templateName ||
+        template.title
+      ),
+
+
+
+    status:
+      normalizeValue(
+        template.status,
+        'UNKNOWN'
+      )
+        .toUpperCase(),
+
+
+
+    language:
+      normalizeValue(
+        template.language,
+        'en_US'
+      ),
+
+
+
+    category:
+      normalizeValue(
+        template.category,
+        'MARKETING'
+      ),
+
+
+
+    header,
+
+
+    body:
+      bodyText,
+
+
+    bodyText,
+
+
+    footer,
+
+
+    buttons,
+
+
+    variables,
+
+
+    paramCount:
+      countVariables(bodyText),
+
+
+    raw:
+      template,
+
+
+  };
+
+
+};
+
+
+
+
+// =================================================
+// URL BUILDER
+// =================================================
+
+
+const buildUrl = (path, query = {}) => {
+
+
+  const { baseUrl } =
+    getWatiConfig();
+
+
+
+  if (!baseUrl) {
+
+    throw new Error(
+      'WATI_API_URL missing'
+    );
 
   }
 
 
- });
+
+  const url =
+    new URL(
+
+      `${baseUrl}/api/v1/${path.replace(/^\/+/, '')}`
+
+    );
 
 
- return url.toString();
+
+  Object.entries(query)
+    .forEach(([key, value]) => {
+
+
+      if (
+        value !== undefined &&
+        value !== null &&
+        value !== ''
+      ) {
+
+
+        url.searchParams.set(
+          key,
+          value
+        );
+
+
+      }
+
+
+    });
+
+
+
+  return url.toString();
 
 
 };
@@ -152,480 +382,168 @@ const buildUrl = (path,query={})=>{
 
 
 
-// ===============================
-// MAIN REQUEST
-// ===============================
+// =================================================
+// REQUEST HANDLER
+// =================================================
 
 
-const request = async(
- path,
- options={},
- label="WATI"
-)=>{
+const request = async (
+  path,
+  options = {},
+  label = 'WATI'
+) => {
 
 
- const {accessToken}=getWatiConfig();
+  const {
+    accessToken,
+    baseUrl,
+  } = getWatiConfig();
 
 
- if(!accessToken){
 
-  throw new Error(
-   "WATI_ACCESS_TOKEN is not configured"
-  );
+  console.log('WATI CONFIG', {
 
- }
+    baseUrl,
 
+    tokenExists:
+      Boolean(accessToken),
 
+    tokenLength:
+      accessToken?.length,
 
- for(
-  let attempt=0;
-  attempt<=MAX_RETRIES;
-  attempt++
- ){
+  });
 
 
- const controller =
-  new AbortController();
 
+  if (!accessToken) {
 
- const timeout =
-  setTimeout(
-   ()=>controller.abort(),
-   30000
-  );
+    throw new Error(
+      'WATI_ACCESS_TOKEN missing'
+    );
 
+  }
 
 
- try{
 
+  for (
+    let attempt = 0;
+    attempt <= MAX_RETRIES;
+    attempt++
+  ) {
 
- const response =
- await fetch(
 
-  buildUrl(
-   path,
-   options.query
-  ),
+    try {
 
- {
 
- method:
- options.method || "GET",
+      const response =
+        await fetch(
 
+          buildUrl(
+            path,
+            options.query
+          ),
 
- signal:
- controller.signal,
 
+          {
 
- headers:{
+            method:
+              options.method || 'GET',
 
-  Authorization:
-  `Bearer ${accessToken}`,
 
+            headers: {
 
-  "Content-Type":
-  "application/json",
 
+              Authorization:
+                `Bearer ${accessToken}`,
 
-  ...(options.headers || {})
 
- },
+              'Content-Type':
+                'application/json',
 
 
- body:
- options.body
- ? JSON.stringify(options.body)
- : undefined
+            },
 
 
- }
+            body:
+              options.body
+                ?
+                JSON.stringify(options.body)
+                :
+                undefined,
 
-);
 
+          }
 
 
-clearTimeout(timeout);
+        );
 
 
 
-if(
- !response.ok &&
- RETRYABLE_STATUSES.has(response.status)&&
- attempt<MAX_RETRIES
-){
+      const text =
+        await response.text();
 
- await sleep(
-  RETRY_DELAY_MS[attempt]
- );
 
- continue;
 
-}
+      const data =
+        text
+          ?
+          JSON.parse(text)
+          :
+          {};
 
 
 
-const text =
- await response.text();
+      if (!response.ok) {
 
 
-const data =
- text ? JSON.parse(text) : {};
+        console.error(
+          'WATI ERROR',
+          response.status,
+          data
+        );
 
 
 
-if(!response.ok){
+        throw new Error(
+          `WATI API Error HTTP ${response.status}`
+        );
 
- throw new Error(
-  `WATI API Error: HTTP ${response.status}`
- );
 
-}
+      }
 
 
 
-return data;
+      return data;
 
 
 
-}catch(error){
+    } catch (error) {
 
 
-clearTimeout(timeout);
+      if (
+        attempt < MAX_RETRIES
+      ) {
 
 
-if(error.name==="AbortError"){
+        await sleep(
+          RETRY_DELAY_MS[attempt]
+        );
 
- throw new Error(
-  `${label} timeout`
- );
 
-}
+        continue;
 
 
-if(attempt<MAX_RETRIES){
+      }
 
- await sleep(
-  RETRY_DELAY_MS[attempt]
- );
 
- continue;
 
-}
+      throw error;
 
 
-throw error;
+    }
 
 
-}
-
-
-}
-
-
-
-};
-
-
-
-
-// ===============================
-// EXTRACT RESULT
-// ===============================
-
-
-const extractItems=(data)=>{
-
- if(Array.isArray(data))
-  return data;
-
-
- return (
-  data.messageTemplates ||
-  data.templates ||
-  data.items ||
-  data.result ||
-  data.data ||
-  []
- );
-
-};
-
-
-
-
-// ===============================
-// GET WATI TEMPLATES
-// ===============================
-
-
-const getApprovedTemplates=async(
- {includeAll=false}={}
-)=>{
-
-
- const data = await request(
-
-  "getMessageTemplates",
-
-  {
-   method:"GET"
-  },
-
-  "WATI.getTemplates"
-
- );
-
-
- const templates =
- extractItems(data)
- .map(mapTemplate);
-
-
-
- const filtered =
- includeAll
- ?
- templates
- :
- templates.filter(
-  t=>t.status==="APPROVED"
- );
-
-
-
- return {
-
-  templates:filtered,
-
-  total:filtered.length
-
- };
-
-
-};
-
-
-
-
-// ===============================
-// SYNC CONTACT
-// ===============================
-
-
-const syncContact=async(contact)=>{
-
-
-const phone =
- normalizePhone(contact.phone);
-
-
-
-const data = await request(
-
- `addContact/${phone}`,
-
- {
-
- method:"POST",
-
-
- body:{
-
-  name:contact.name,
-
-
-  customParams:[
-
-   {
-    name:"email",
-    value:contact.email || ""
-   },
-
-
-   {
-    name:"source",
-    value:contact.source || "CRM"
-   }
-
-  ]
-
- }
-
- },
-
- "WATI.syncContact"
-
-);
-
-
-
-return {
-
- success:true,
-
- raw:data
-
-};
-
-
-};
-
-
-
-
-// ===============================
-// SEND TEMPLATE
-// ===============================
-
-
-const sendTemplateMessage=async(
-
- phone,
- templateName,
- components={},
- languageCode="en_US",
- options={}
-
-)=>{
-
-
-const params =
-Array.isArray(components)
-? components
-: components.body || [];
-
-
-
-const data =
-await request(
-
- "sendTemplateMessage",
-
- {
-
- method:"POST",
-
-
- query:{
-
-  whatsappNumber:
-  normalizePhone(phone)
-
- },
-
-
- body:{
-
-  template_name:
-  templateName,
-
-
-  broadcast_name:
-  options.broadcastName ||
-  `CRM-${Date.now()}`,
-
-
-  parameters:
-
-  params.map(
-   (value,index)=>({
-
-    name:String(index+1),
-
-    value:String(value)
-
-   })
-  )
-
-
- }
-
-
- },
-
- "WATI.sendTemplate"
-
-);
-
-
-
-const messageId =
- data.messageId ||
- crypto.randomUUID();
-
-
-
-return {
-
- success:true,
-
- provider:"wati",
-
- watiMessageId:messageId,
-
- metaMessageId:messageId,
-
- status:"accepted",
-
- sentAt:new Date(),
-
- raw:data
-
-};
-
-
-};
-
-
-
-
-// ===============================
-// NORMAL MESSAGE
-// ===============================
-
-
-const sendMessage=async(
- phone,
- text
-)=>{
-
-
-const data =
-await request(
-
- `sendSessionMessage/${normalizePhone(phone)}`,
-
- {
-
- method:"POST",
-
-
- body:{
-
-  messageText:text
-
- }
-
-
- },
-
- "WATI.sendMessage"
-
-);
-
-
-
-return {
-
- success:true,
-
- provider:"wati",
-
- status:"sent",
-
- raw:data
-
-};
+  }
 
 
 };
@@ -634,121 +552,34 @@ return {
 
 
 
-// ===============================
-// WEBHOOK SIGNATURE
-// ===============================
+// =================================================
+// RESPONSE EXTRACTION
+// =================================================
 
 
-const verifyWebhookSignature=(
-
- rawBody,
- signature,
- secret
-
-)=>{
+const extractItems = (data) => {
 
 
-if(!secret) return true;
-
-if(!signature) return false;
-
+  if (Array.isArray(data))
+    return data;
 
 
-const expected = crypto
-
-.createHmac(
- "sha256",
- secret
-)
-
-.update(
- rawBody || ""
-)
-
-.digest("hex");
-
-
-
-try{
-
- return crypto.timingSafeEqual(
-
-  Buffer.from(
-   signature.replace(/^sha256=/,"")
-  ),
-
-
-  Buffer.from(expected)
-
- );
-
-
-}catch{
-
-
- return false;
-
-
-}
-
-
-};
-
-
-
-
-// ===============================
-// VARIABLE REPLACE
-// ===============================
-
-
-const replaceVariables=(
-
- templateText,
- contact,
- fields=[]
-
-)=>{
-
-
-return String(templateText||"")
-
-.replace(
-
- /\{\{(\d+)\}\}/g,
-
-
- (_,index)=>{
-
-
- const field =
- fields[
- parseInt(index,10)-1
- ];
-
-
- if(field){
 
   return (
-   contact[field] ||
-   contact.customFields?.[field] ||
-   ""
+
+    data.messageTemplates ||
+
+    data.templates ||
+
+    data.items ||
+
+    data.result ||
+
+    data.data ||
+
+    []
+
   );
-
- }
-
-
- const fallback =
- ["name","phone","email"]
- [parseInt(index,10)-1];
-
-
- return contact[fallback] || "";
-
-
- }
-
-);
 
 
 };
@@ -756,21 +587,79 @@ return String(templateText||"")
 
 
 
+// =================================================
+// GET TEMPLATES
+// =================================================
 
-module.exports={
 
- getApprovedTemplates,
+const getApprovedTemplates =
+  async ({ includeAll = false } = {}) => {
 
- syncContact,
 
- sendTemplateMessage,
+    const data =
+      await request(
 
- sendMessage,
+        'getMessageTemplates',
 
- verifyWebhookSignature,
+        {
+          method: 'GET'
+        },
 
- replaceVariables,
+        'WATI.templates'
 
- normalizePhone
+      );
+
+
+
+    const templates =
+      extractItems(data)
+        .map(mapTemplate);
+
+
+
+    return {
+
+
+      templates:
+        includeAll
+
+          ?
+
+          templates
+
+          :
+
+          templates.filter(
+            (t) =>
+              t.status === 'APPROVED'
+          ),
+
+
+
+      total:
+        templates.length,
+
+
+    };
+
+
+  };
+
+
+
+
+// =================================================
+// EXPORTS
+// =================================================
+
+
+module.exports = {
+
+
+  getApprovedTemplates,
+
+
+  normalizePhone,
+
 
 };
