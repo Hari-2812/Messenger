@@ -112,14 +112,29 @@ const syncBulkContacts = async (contacts, batchSize = 25) => {
   return results;
 };
 
+const { getWatiConfig } = require('../config/wati');
+
+/**
+ * Find and sync all pending/failed contacts.
+ */
+const syncAllContacts = async () => {
+  const { accessToken, baseUrl } = getWatiConfig();
+  if (!accessToken || !baseUrl) {
+    throw new Error('WATI not configured');
+  }
+
+  const contacts = await Contact.find({
+    $or: [{ syncStatus: { $in: ['pending', 'failed'] } }, { watiContactId: null }],
+  });
+
+  return syncBulkContacts(contacts);
+};
+
 /**
  * Find and retry all pending/failed contacts.
  */
 const retryFailedContacts = async () => {
-  const contacts = await Contact.find({
-    $or: [{ syncStatus: 'pending' }, { syncStatus: 'failed' }],
-  });
-  return syncBulkContacts(contacts);
+  return syncAllContacts();
 };
 
 /**
@@ -154,6 +169,7 @@ module.exports = {
   isWatiEnabled,
   syncSingleContact,
   syncBulkContacts,
+  syncAllContacts,
   retryFailedContacts,
   ensureContactSynced,
   syncContactById,

@@ -19,8 +19,8 @@ router.use(protect);
 router.get('/', getContacts);
 router.post('/', createContact);
 router.post('/import', upload.single('file'), importContacts);
-router.post('/sync-all', syncAllContacts);
-router.post('/:id/sync-retry', retrySyncContact);
+router.post('/sync-all', protect, syncAllContacts);
+router.post('/:id/sync-retry', protect, retrySyncContact);
 router.put('/:id', updateContact);
 router.delete('/:id', deleteContact);
 

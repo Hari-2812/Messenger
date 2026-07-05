@@ -183,21 +183,26 @@ const deleteContact = async (req, res) => {
 // @desc    Sync all unsynced contacts to WATI
 // @route   POST /api/contacts/sync-all
 const syncAllContacts = async (req, res) => {
-  const contacts = await Contact.find({
-    $or: [{ syncStatus: { $in: ['pending', 'failed'] } }, { watiContactId: null }],
-  });
+  const { getWatiConfig } = require('../config/wati');
+  const { accessToken, baseUrl } = getWatiConfig();
+  if (!accessToken || !baseUrl) {
+    return res.status(400).json({ success: false, message: 'WATI not configured' });
+  }
 
-  const results = await contactSyncService.syncBulkContacts(contacts);
-
-  res.json({
-    success: true,
-    message: `Sync completed for ${results.total} contacts`,
-    total: results.total,
-    synced: results.synced,
-    failed: results.failed,
-    pending: results.pending,
-    errors: results.errors.slice(0, 10),
-  });
+  try {
+    const results = await contactSyncService.syncAllContacts();
+    res.json({
+      success: true,
+      total: results.total,
+      synced: results.synced,
+      failed: results.failed,
+    });
+  } catch (error) {
+    if (error.message === 'WATI not configured') {
+      return res.status(400).json({ success: false, message: 'WATI not configured' });
+    }
+    return res.status(500).json({ success: false, message: error.message });
+  }
 };
 
 // @desc    Retry sync for a specific contact
