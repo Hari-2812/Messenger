@@ -16,6 +16,7 @@ const MessageLog = require('../models/MessageLog');
 const Contact = require('../models/Contact');
 const Conversation = require('../models/Conversation');
 const ProviderFactory = require('./ProviderFactory');
+const contactSyncService = require('./contactSyncService');
 
 /**
  * Build ordered parameter array for Meta template body variables.
@@ -84,16 +85,11 @@ const sendSingleMessage = async (item) => {
     // Auto-sync contact if provider is WATI and not yet synced
     if (provider === 'wati') {
       try {
-        const contact = await Contact.findById(contactId);
-        if (contact && (!contact.watiContactId || contact.syncStatus !== 'synced')) {
-          console.log(`[CampaignQueue] Auto-syncing contact ${contact.phone} before template message...`);
-          const watiService = require('./watiService');
-          const syncResult = await watiService.syncContact(contact);
-          contact.syncStatus = 'synced';
-          contact.whatsappStatus = 'synced';
-          contact.lastSyncedAt = new Date();
-          if (syncResult.watiContactId) contact.watiContactId = syncResult.watiContactId;
-          await contact.save();
+        const syncResult = await contactSyncService.ensureContactSynced(contactId);
+        if (!syncResult.success) {
+          console.warn(
+            `[CampaignQueue] Auto-sync failed for contact ${contactId}: ${syncResult.error || 'unknown'}`
+          );
         }
       } catch (syncErr) {
         console.warn(`[CampaignQueue] Auto-sync failed for contact ${contactId}: ${syncErr.message}`);

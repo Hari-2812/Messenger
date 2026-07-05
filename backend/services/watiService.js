@@ -473,36 +473,44 @@ const request = async (
 
 
 
-      const text =
-        await response.text();
+      const text = await response.text();
 
-
-
-      const data =
-        text
-          ?
-          JSON.parse(text)
-          :
-          {};
+      let data = {};
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { message: text };
+        }
+      }
 
 
 
       if (!response.ok) {
+        console.error('WATI ERROR', response.status, data);
 
+        const apiMessage =
+          data?.message ||
+          data?.error ||
+          data?.info ||
+          (typeof data === 'string' ? data : null);
 
-        console.error(
-          'WATI ERROR',
-          response.status,
-          data
-        );
+        if (response.status === 401) {
+          throw new Error('WATI access token expired or invalid');
+        }
+        if (response.status === 429) {
+          const rateErr = new Error('WATI rate limit exceeded — try again shortly');
+          rateErr.status = 429;
+          throw rateErr;
+        }
 
-
-
-        throw new Error(
-          `WATI API Error HTTP ${response.status}`
-        );
-
-
+        const errMsg = apiMessage
+          ? `WATI API Error (${response.status}): ${apiMessage}`
+          : `WATI API Error HTTP ${response.status}`;
+        const err = new Error(errMsg);
+        err.status = response.status;
+        err.watiResponse = data;
+        throw err;
       }
 
 
@@ -512,28 +520,19 @@ const request = async (
 
 
     } catch (error) {
+      const isRetryable =
+        error.status === 429 ||
+        (error.status && RETRYABLE_STATUSES.has(error.status)) ||
+        error.message?.includes('fetch failed') ||
+        error.message?.includes('ECONNRESET') ||
+        error.message?.includes('ETIMEDOUT');
 
-
-      if (
-        attempt < MAX_RETRIES
-      ) {
-
-
-        await sleep(
-          RETRY_DELAY_MS[attempt]
-        );
-
-
+      if (attempt < MAX_RETRIES && isRetryable) {
+        await sleep(RETRY_DELAY_MS[attempt]);
         continue;
-
-
       }
 
-
-
       throw error;
-
-
     }
 
 
@@ -644,47 +643,66 @@ const getApprovedTemplates =
 // CONTACT SYNC & MESSAGING
 // =================================================
 
-const syncContact = async (contact) => {
-  const phone = normalizePhone(contact.phone);
+const DUPLICATE_CONTACT_PATTERNS = [
+  /already exists/i,
+  /duplicate/i,
+  /contact exists/i,
+];
+
+const isDuplicateContactError = (error) =>
+  DUPLICATE_CONTACT_PATTERNS.some((pattern) => pattern.test(error?.message || ''));
+
+const buildCustomParams = (contact) => {
   const customParams = [
     { name: 'email', value: contact.email || '' },
-    { name: 'tags', value: (contact.tags || []).join(',') }
+    { name: 'tags', value: (contact.tags || []).join(',') },
   ];
   if (contact.customFields) {
     Object.entries(contact.customFields).forEach(([key, val]) => {
       customParams.push({ name: key, value: String(val) });
     });
   }
-  const result = await request(`addContact/${phone}`, {
-    method: 'POST',
-    body: {
-      name: contact.name,
-      customParams
-    }
-  }, 'WATI.syncContact');
+  return customParams;
+};
 
-  return {
-    watiContactId: result.id || result.contact?.id || null,
-    raw: result
-  };
+const syncContact = async (contact) => {
+  const phone = normalizePhone(contact.phone);
+  if (!phone || phone.length < 7 || phone.length > 15) {
+    throw new Error(`Invalid phone number: "${contact.phone}"`);
+  }
+
+  try {
+    const result = await request(`addContact/${phone}`, {
+      method: 'POST',
+      body: {
+        name: contact.name || '',
+        customParams: buildCustomParams(contact),
+      },
+    }, 'WATI.syncContact');
+
+    return {
+      watiContactId: result.id || result.contact?.id || result.contactId || null,
+      raw: result,
+    };
+  } catch (error) {
+    if (isDuplicateContactError(error)) {
+      return {
+        watiContactId: contact.watiContactId || null,
+        raw: { duplicate: true, message: error.message },
+      };
+    }
+    throw error;
+  }
 };
 
 const updateContact = async (phone, contact) => {
   const normalized = normalizePhone(phone);
-  const customParams = [
-    { name: 'email', value: contact.email || '' },
-    { name: 'tags', value: (contact.tags || []).join(',') }
-  ];
-  if (contact.customFields) {
-    Object.entries(contact.customFields).forEach(([key, val]) => {
-      customParams.push({ name: key, value: String(val) });
-    });
-  }
   const result = await request(`updateContactAttributes/${normalized}`, {
     method: 'POST',
     body: {
-      customParams
-    }
+      name: contact.name || '',
+      customParams: buildCustomParams(contact),
+    },
   }, 'WATI.updateContact');
   return result;
 };

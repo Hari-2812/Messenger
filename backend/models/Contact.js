@@ -19,6 +19,7 @@ const contactSchema = new mongoose.Schema(
       default: 'pending',
     },
     lastSyncedAt: { type: Date, default: null },
+    syncError: { type: String, default: null },
     lastMessageStatus: {
       type: String,
       enum: ['none', 'pending', 'accepted', 'sent', 'delivered', 'read', 'failed', 'received'],

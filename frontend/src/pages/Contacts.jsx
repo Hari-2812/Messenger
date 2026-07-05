@@ -11,6 +11,7 @@ const Contacts = () => {
   const [form, setForm] = useState({ name: '', phone: '', email: '', tags: '', customFields: '' });
   const [importing, setImporting] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
+  const [retryingId, setRetryingId] = useState(null);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -134,7 +135,9 @@ const Contacts = () => {
 
     try {
       const { data } = await contactsAPI.importCSV(file);
-      setSuccess(`Import complete: ${data.imported} imported, ${data.skipped} skipped${data.errors > 0 ? `, ${data.errors} errors` : ''}`);
+      setSuccess(
+        `Import complete: ${data.imported} imported, ${data.synced ?? 0} synced, ${data.failed ?? 0} failed, ${data.pending ?? 0} pending, ${data.skipped} skipped`
+      );
       fetchContacts(1, search);
     } catch (err) {
       setError(err.response?.data?.message || 'Import failed');
@@ -150,24 +153,37 @@ const Contacts = () => {
     setSuccess('');
     try {
       const { data } = await contactsAPI.syncAll();
-      setSuccess(data.message || 'Synchronization started in background.');
+      setSuccess(
+        data.message ||
+          `Sync complete: ${data.synced ?? 0} synced, ${data.failed ?? 0} failed out of ${data.total ?? 0}`
+      );
       fetchContacts(page, search);
     } catch (err) {
-      setError(err.response?.data?.message || 'Bulk synchronization failed');
+      setError(err.response?.data?.message || err.response?.data?.error || 'Bulk synchronization failed');
     } finally {
       setSyncingAll(false);
     }
   };
 
   const handleRetrySync = async (id) => {
+    setRetryingId(id);
     setError('');
     setSuccess('');
     try {
-      await contactsAPI.retrySync(id);
-      setSuccess('Contact sync triggered successfully');
+      const { data } = await contactsAPI.retrySync(id);
+      if (data.success) {
+        setSuccess(data.message || 'Contact synced with WATI');
+      } else {
+        setError(data.error || 'Sync retry failed');
+      }
       fetchContacts(page, search);
+      setTimeout(() => setSuccess(''), 4000);
     } catch (err) {
-      setError(err.response?.data?.message || 'Sync retry failed');
+      const errData = err.response?.data;
+      setError(errData?.error || errData?.message || 'Sync retry failed');
+      fetchContacts(page, search);
+    } finally {
+      setRetryingId(null);
     }
   };
 
@@ -179,11 +195,23 @@ const Contacts = () => {
   const getSyncStatusBadge = (status) => {
     switch (status) {
       case 'synced':
-        return <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 border border-emerald-200">Synced</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 border border-emerald-200">
+            🟢 Synced
+          </span>
+        );
       case 'failed':
-        return <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700 border border-red-200">Failed</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700 border border-red-200">
+            🔴 Failed
+          </span>
+        );
       default:
-        return <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 border border-amber-200">Pending</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 border border-amber-200">
+            🟡 Pending
+          </span>
+        );
     }
   };
 
@@ -215,7 +243,7 @@ const Contacts = () => {
             disabled={syncingAll}
             className="inline-flex items-center gap-2 rounded-xl bg-indigo-50 border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 transition disabled:opacity-50"
           >
-            {syncingAll ? 'Triggering...' : '🔄 Sync All Contacts'}
+            {syncingAll ? 'Syncing...' : '🔄 Sync All'}
           </button>
         </div>
       </div>
@@ -380,6 +408,11 @@ const Contacts = () => {
                               Synced: {new Date(contact.lastSyncedAt).toLocaleString()}
                             </span>
                           )}
+                          {contact.syncError && contact.syncStatus === 'failed' && (
+                            <span className="text-[10px] text-red-500 font-medium max-w-[180px] truncate" title={contact.syncError}>
+                              {contact.syncError}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="py-4 px-4">
@@ -401,9 +434,10 @@ const Contacts = () => {
                           {contact.syncStatus !== 'synced' && (
                             <button
                               onClick={() => handleRetrySync(contact._id)}
-                              className="text-xs font-semibold text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100/70 px-2 py-1 rounded-md transition"
+                              disabled={retryingId === contact._id}
+                              className="text-xs font-semibold text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100/70 px-2 py-1 rounded-md transition disabled:opacity-50"
                             >
-                              Sync Retry
+                              {retryingId === contact._id ? 'Syncing...' : 'Retry Sync'}
                             </button>
                           )}
                           <button
@@ -468,9 +502,10 @@ const Contacts = () => {
                   {contact.syncStatus !== 'synced' && (
                     <button
                       onClick={() => handleRetrySync(contact._id)}
-                      className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg transition active:bg-indigo-100 flex-1 text-center"
+                      disabled={retryingId === contact._id}
+                      className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg transition active:bg-indigo-100 flex-1 text-center disabled:opacity-50"
                     >
-                      Retry Sync
+                      {retryingId === contact._id ? 'Syncing...' : 'Retry Sync'}
                     </button>
                   )}
                   <button

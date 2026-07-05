@@ -4,6 +4,7 @@ const csv = require('csv-parser');
 const fs = require('fs');
 const ProviderFactory = require('../services/ProviderFactory');
 const watiService = require('../services/watiService');
+const contactSyncService = require('../services/contactSyncService');
 
 /**
  * Validate and normalize a phone number for Meta WhatsApp API.
@@ -20,55 +21,33 @@ const validatePhone = (phone) => {
   return { valid: true, normalized: digits };
 };
 
-const syncToWatiIfEnabled = async (contact) => {
-  if (ProviderFactory.getProvider() !== 'wati') return contact;
-
-  try {
-    let result;
-    if (contact.watiContactId || contact.syncStatus === 'synced') {
-      result = await watiService.updateContact(contact.phone, contact);
-    } else {
-      result = await watiService.syncContact(contact);
-    }
-    contact.whatsappStatus = 'synced';
-    contact.syncStatus = 'synced';
-    contact.lastSyncedAt = new Date();
-    if (result && result.watiContactId) contact.watiContactId = result.watiContactId;
-    if (result && result.raw?.contact?.id) contact.watiContactId = result.raw.contact.id;
-    await contact.save();
-  } catch (error) {
-    contact.whatsappStatus = 'failed';
-    contact.syncStatus = 'failed';
-    await contact.save();
-    console.warn(`[WATI] Contact sync failed for ${contact._id}: ${error.message}`);
-  }
-
-  return contact;
-};
-
 const processContactsInQueue = async (contacts, batchSize = 25) => {
-  const results = { imported: 0, synced: 0, failed: 0, errors: [] };
+  const results = { imported: 0, synced: 0, failed: 0, pending: 0, errors: [] };
 
   for (let index = 0; index < contacts.length; index += batchSize) {
     const batch = contacts.slice(index, index + batchSize);
-    const batchResults = await Promise.allSettled(
-      batch.map(async (contactPayload) => {
-        const contact = await Contact.create(contactPayload);
-        await syncToWatiIfEnabled(contact);
-        return contact;
-      })
+    const createdContacts = await Promise.allSettled(
+      batch.map((contactPayload) => Contact.create(contactPayload))
     );
 
-    batchResults.forEach((result) => {
+    const savedContacts = [];
+    createdContacts.forEach((result) => {
       if (result.status === 'fulfilled') {
         results.imported += 1;
-        if (result.value?.syncStatus === 'synced') results.synced += 1;
-        else results.failed += 1;
+        savedContacts.push(result.value);
       } else {
         results.failed += 1;
         results.errors.push(result.reason?.message || 'Unknown contact import failure');
       }
     });
+
+    if (savedContacts.length > 0) {
+      const syncResults = await contactSyncService.syncBulkContacts(savedContacts, batchSize);
+      results.synced += syncResults.synced;
+      results.failed += syncResults.failed;
+      results.pending += syncResults.pending;
+      results.errors.push(...syncResults.errors);
+    }
   }
 
   return results;
@@ -124,10 +103,16 @@ const createContact = async (req, res) => {
     tags: Array.isArray(tags) ? tags.map(String).filter(Boolean) : [],
     source: source?.trim() || 'CRM',
     customFields: customFields || {},
+    syncStatus: 'pending',
   });
 
-  await syncToWatiIfEnabled(contact);
-  res.status(201).json(contact);
+  const syncResult = await contactSyncService.syncSingleContact(contact);
+
+  res.status(201).json({
+    ...contact.toObject(),
+    syncStatus: syncResult.syncStatus,
+    syncError: syncResult.error || contact.syncError,
+  });
 };
 
 // @desc    Update contact
@@ -140,7 +125,6 @@ const updateContact = async (req, res) => {
     return res.status(404).json({ message: 'Contact not found' });
   }
 
-  // Phone validation if being changed
   if (phone) {
     const phoneCheck = validatePhone(phone);
     if (!phoneCheck.valid) {
@@ -166,8 +150,13 @@ const updateContact = async (req, res) => {
   if (customFields !== undefined) contact.customFields = customFields || {};
 
   await contact.save();
-  await syncToWatiIfEnabled(contact);
-  res.json(contact);
+  const syncResult = await contactSyncService.syncSingleContact(contact);
+
+  res.json({
+    ...contact.toObject(),
+    syncStatus: syncResult.syncStatus,
+    syncError: syncResult.error || contact.syncError,
+  });
 };
 
 // @desc    Delete contact
@@ -194,38 +183,47 @@ const deleteContact = async (req, res) => {
 // @desc    Sync all unsynced contacts to WATI
 // @route   POST /api/contacts/sync-all
 const syncAllContacts = async (req, res) => {
-  try {
-    const contacts = await Contact.find({
-      $or: [{ syncStatus: { $ne: 'synced' } }, { watiContactId: null }]
-    });
+  const contacts = await Contact.find({
+    $or: [{ syncStatus: { $in: ['pending', 'failed'] } }, { watiContactId: null }],
+  });
 
-    res.json({ message: `Sync started for ${contacts.length} contacts`, total: contacts.length });
+  const results = await contactSyncService.syncBulkContacts(contacts);
 
-    // Process asynchronously in background
-    (async () => {
-      for (const contact of contacts) {
-        await syncToWatiIfEnabled(contact);
-      }
-    })().catch(err => console.error('[WATI Bulk Sync] Error:', err.message));
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
+  res.json({
+    success: true,
+    message: `Sync completed for ${results.total} contacts`,
+    total: results.total,
+    synced: results.synced,
+    failed: results.failed,
+    pending: results.pending,
+    errors: results.errors.slice(0, 10),
+  });
 };
 
 // @desc    Retry sync for a specific contact
 // @route   POST /api/contacts/:id/sync-retry
 const retrySyncContact = async (req, res) => {
-  try {
-    const contact = await Contact.findById(req.params.id);
-    if (!contact) {
-      return res.status(404).json({ message: 'Contact not found' });
-    }
-    await syncToWatiIfEnabled(contact);
-    res.json(contact);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  const syncResult = await contactSyncService.syncContactById(req.params.id);
+
+  if (syncResult.error === 'Contact not found') {
+    return res.status(404).json({ success: false, message: 'Contact not found' });
   }
+
+  if (syncResult.success) {
+    return res.json({
+      success: true,
+      message: 'Contact synced with WATI',
+      syncStatus: 'synced',
+      contact: syncResult.contact,
+    });
+  }
+
+  return res.status(422).json({
+    success: false,
+    syncStatus: 'failed',
+    error: syncResult.error || 'Sync failed',
+    contact: syncResult.contact,
+  });
 };
 
 // @desc    Import contacts from CSV
@@ -242,7 +240,6 @@ const importContacts = async (req, res) => {
   let skipped = 0;
 
   try {
-    // Parse CSV
     await new Promise((resolve, reject) => {
       fs.createReadStream(filePath)
         .pipe(csv())
@@ -271,14 +268,13 @@ const importContacts = async (req, res) => {
 
       const existing = await Contact.findOne({ phone: phoneCheck.normalized });
       if (existing) {
-        skipped++;
+        skipped += 1;
         continue;
       }
 
-      pendingContacts.push({ name, phone: phoneCheck.normalized, email, tags, source });
+      pendingContacts.push({ name, phone: phoneCheck.normalized, email, tags, source, syncStatus: 'pending' });
     }
   } finally {
-    // Always clean up temp file
     try {
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     } catch (cleanupErr) {
@@ -288,13 +284,15 @@ const importContacts = async (req, res) => {
 
   const batchResults = pendingContacts.length > 0
     ? await processContactsInQueue(pendingContacts)
-    : { imported: 0, synced: 0, failed: 0, errors: [] };
+    : { imported: 0, synced: 0, failed: 0, pending: 0, errors: [] };
 
   res.json({
     message: 'Import completed',
+    total: pendingContacts.length,
     imported: batchResults.imported,
     synced: batchResults.synced,
     failed: batchResults.failed,
+    pending: batchResults.pending,
     skipped,
     errors: errors.length + batchResults.errors.length,
     errorDetails: [...errors.slice(0, 10), ...batchResults.errors.slice(0, 10)],

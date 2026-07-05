@@ -15,10 +15,13 @@ const router = express.Router();
 
 router.use(protect);
 
-router.route('/').get(getContacts).post(createContact);
-router.route('/import').post(upload.single('file'), importContacts);
-router.route('/sync-all').post(syncAllContacts);
-router.route('/:id/sync-retry').post(retrySyncContact);
-router.route('/:id').put(updateContact).delete(deleteContact);
+// Static routes first — must precede /:id to avoid conflicts
+router.get('/', getContacts);
+router.post('/', createContact);
+router.post('/import', upload.single('file'), importContacts);
+router.post('/sync-all', syncAllContacts);
+router.post('/:id/sync-retry', retrySyncContact);
+router.put('/:id', updateContact);
+router.delete('/:id', deleteContact);
 
 module.exports = router;
