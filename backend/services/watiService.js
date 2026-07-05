@@ -415,15 +415,16 @@ const request = async (
 
 
 
-  if (!accessToken) {
+  let token = accessToken || '';
+  if (token.startsWith('Bearer ')) {
+    token = token.substring(7);
+  }
 
+  if (!token) {
     throw new Error(
       'WATI_ACCESS_TOKEN missing'
     );
-
   }
-
-
 
   for (
     let attempt = 0;
@@ -431,9 +432,7 @@ const request = async (
     attempt++
   ) {
 
-
     try {
-
 
       const response =
         await fetch(
@@ -443,23 +442,18 @@ const request = async (
             options.query
           ),
 
-
           {
 
             method:
               options.method || 'GET',
 
-
             headers: {
 
-
               Authorization:
-                `Bearer ${accessToken}`,
-
+                `Bearer ${token}`,
 
               'Content-Type':
                 'application/json',
-
 
             },
 
@@ -646,6 +640,159 @@ const getApprovedTemplates =
   };
 
 
+// =================================================
+// CONTACT SYNC & MESSAGING
+// =================================================
+
+const syncContact = async (contact) => {
+  const phone = normalizePhone(contact.phone);
+  const customParams = [
+    { name: 'email', value: contact.email || '' },
+    { name: 'tags', value: (contact.tags || []).join(',') }
+  ];
+  if (contact.customFields) {
+    Object.entries(contact.customFields).forEach(([key, val]) => {
+      customParams.push({ name: key, value: String(val) });
+    });
+  }
+  const result = await request(`addContact/${phone}`, {
+    method: 'POST',
+    body: {
+      name: contact.name,
+      customParams
+    }
+  }, 'WATI.syncContact');
+
+  return {
+    watiContactId: result.id || result.contact?.id || null,
+    raw: result
+  };
+};
+
+const updateContact = async (phone, contact) => {
+  const normalized = normalizePhone(phone);
+  const customParams = [
+    { name: 'email', value: contact.email || '' },
+    { name: 'tags', value: (contact.tags || []).join(',') }
+  ];
+  if (contact.customFields) {
+    Object.entries(contact.customFields).forEach(([key, val]) => {
+      customParams.push({ name: key, value: String(val) });
+    });
+  }
+  const result = await request(`updateContactAttributes/${normalized}`, {
+    method: 'POST',
+    body: {
+      customParams
+    }
+  }, 'WATI.updateContact');
+  return result;
+};
+
+const deleteContact = async (phone) => {
+  const normalized = normalizePhone(phone);
+  try {
+    const result = await request(`deleteContact/${normalized}`, {
+      method: 'POST'
+    }, 'WATI.deleteContact');
+    return result;
+  } catch (err) {
+    console.warn(`[WATI] Delete contact endpoint failed or unsupported: ${err.message}`);
+    return { success: false, error: err.message };
+  }
+};
+
+const sendMessage = async (phone, message) => {
+  const normalized = normalizePhone(phone);
+  const result = await request(`sendSessionMessage/${normalized}`, {
+    method: 'POST',
+    query: {
+      messageText: message
+    }
+  }, 'WATI.sendMessage');
+
+  return {
+    success: result.result === 'success' || result.status === 'sent' || result.success || false,
+    watiMessageId: result.id || result.messageId || null,
+    provider: 'wati',
+    status: 'sent',
+    sentAt: new Date(),
+    error: result.error || result.message || null
+  };
+};
+
+const sendTemplateMessage = async (
+  phone,
+  templateName,
+  parameters = {},
+  languageCode = 'en_US',
+  options = {}
+) => {
+  const normalized = normalizePhone(phone);
+  const paramsArray = Array.isArray(parameters) ? parameters : (parameters?.body || []);
+  const mappedParams = paramsArray.map((val, idx) => ({
+    name: String(idx + 1),
+    value: String(val)
+  }));
+
+  const result = await request('sendTemplateMessage', {
+    method: 'POST',
+    query: {
+      whatsappNumber: normalized
+    },
+    body: {
+      template_name: templateName,
+      broadcast_name: options.broadcastName || `Campaign-${Date.now()}`,
+      parameters: mappedParams
+    }
+  }, 'WATI.sendTemplateMessage');
+
+  return {
+    success: result.result === 'success' || result.status === 'sent' || result.success || false,
+    watiMessageId: result.id || result.messageId || result.rawId || null,
+    provider: 'wati',
+    status: 'sent',
+    sentAt: new Date(),
+    error: result.error || result.message || null
+  };
+};
+
+const replaceVariables = (templateText, contact, fields = []) => {
+  if (!templateText) return '';
+  const variableMap = [
+    contact.name  || '',   // {{1}}
+    contact.phone || '',   // {{2}}
+    contact.email || '',   // {{3}}
+  ];
+
+  let result = templateText.replace(/\{\{(\d+)\}\}/g, (_, index) => {
+    return variableMap[parseInt(index) - 1] || '';
+  });
+
+  result = result
+    .replace(/\{\{name\}\}/gi,  contact.name  || '')
+    .replace(/\{\{phone\}\}/gi, contact.phone || '')
+    .replace(/\{\{email\}\}/gi, contact.email || '');
+
+  return result;
+};
+
+const verifyWebhookSignature = (payload, signature, secret) => {
+  if (!secret || !signature) return false;
+  const hash = crypto
+    .createHmac('sha256', secret)
+    .update(payload)
+    .digest('hex');
+  const sig = signature.startsWith('sha256=') ? signature.substring(7) : signature;
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(sig, 'hex'),
+      Buffer.from(hash, 'hex')
+    );
+  } catch {
+    return false;
+  }
+};
 
 
 // =================================================
@@ -654,12 +801,13 @@ const getApprovedTemplates =
 
 
 module.exports = {
-
-
   getApprovedTemplates,
-
-
   normalizePhone,
-
-
+  syncContact,
+  updateContact,
+  deleteContact,
+  sendMessage,
+  sendTemplateMessage,
+  replaceVariables,
+  verifyWebhookSignature
 };

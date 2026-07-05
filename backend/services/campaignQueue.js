@@ -23,6 +23,13 @@ const ProviderFactory = require('./ProviderFactory');
  *
  * e.g. templateVariables: ['name', 'phone']
  *   → contact.name  = {{1}}
+
+/**
+ * Build ordered parameter array for Meta template body variables.
+ * Maps campaign.templateVariables config → contact fields.
+ *
+ * e.g. templateVariables: ['name', 'phone']
+ *   → contact.name  = {{1}}
  *   → contact.phone = {{2}}
  *
  * @param {Object} campaign - Campaign Mongoose document
@@ -73,6 +80,26 @@ const sendSingleMessage = async (item) => {
 
     // Pass structured components object — MetaProvider expects { body: [] }
     const provider = ProviderFactory.getProvider();
+
+    // Auto-sync contact if provider is WATI and not yet synced
+    if (provider === 'wati') {
+      try {
+        const contact = await Contact.findById(contactId);
+        if (contact && (!contact.watiContactId || contact.syncStatus !== 'synced')) {
+          console.log(`[CampaignQueue] Auto-syncing contact ${contact.phone} before template message...`);
+          const watiService = require('./watiService');
+          const syncResult = await watiService.syncContact(contact);
+          contact.syncStatus = 'synced';
+          contact.whatsappStatus = 'synced';
+          contact.lastSyncedAt = new Date();
+          if (syncResult.watiContactId) contact.watiContactId = syncResult.watiContactId;
+          await contact.save();
+        }
+      } catch (syncErr) {
+        console.warn(`[CampaignQueue] Auto-sync failed for contact ${contactId}: ${syncErr.message}`);
+      }
+    }
+
     const localMessageId = `${campaignId}-${contactId}-${Date.now()}`;
     const result = await ProviderFactory.sendTemplateMessage(
       phone,

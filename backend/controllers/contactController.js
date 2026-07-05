@@ -24,12 +24,17 @@ const syncToWatiIfEnabled = async (contact) => {
   if (ProviderFactory.getProvider() !== 'wati') return contact;
 
   try {
-    const result = await watiService.syncContact(contact);
+    let result;
+    if (contact.watiContactId || contact.syncStatus === 'synced') {
+      result = await watiService.updateContact(contact.phone, contact);
+    } else {
+      result = await watiService.syncContact(contact);
+    }
     contact.whatsappStatus = 'synced';
     contact.syncStatus = 'synced';
     contact.lastSyncedAt = new Date();
-    if (result.watiContactId) contact.watiContactId = result.watiContactId;
-    if (result.raw?.contact?.id) contact.watiContactId = result.raw.contact.id;
+    if (result && result.watiContactId) contact.watiContactId = result.watiContactId;
+    if (result && result.raw?.contact?.id) contact.watiContactId = result.raw.contact.id;
     await contact.save();
   } catch (error) {
     contact.whatsappStatus = 'failed';
@@ -174,8 +179,53 @@ const deleteContact = async (req, res) => {
     return res.status(404).json({ message: 'Contact not found' });
   }
 
+  if (ProviderFactory.getProvider() === 'wati') {
+    try {
+      await watiService.deleteContact(contact.phone);
+    } catch (err) {
+      console.warn(`[WATI] Failed to delete contact from WATI: ${err.message}`);
+    }
+  }
+
   await contact.deleteOne();
   res.json({ message: 'Contact deleted successfully' });
+};
+
+// @desc    Sync all unsynced contacts to WATI
+// @route   POST /api/contacts/sync-all
+const syncAllContacts = async (req, res) => {
+  try {
+    const contacts = await Contact.find({
+      $or: [{ syncStatus: { $ne: 'synced' } }, { watiContactId: null }]
+    });
+
+    res.json({ message: `Sync started for ${contacts.length} contacts`, total: contacts.length });
+
+    // Process asynchronously in background
+    (async () => {
+      for (const contact of contacts) {
+        await syncToWatiIfEnabled(contact);
+      }
+    })().catch(err => console.error('[WATI Bulk Sync] Error:', err.message));
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Retry sync for a specific contact
+// @route   POST /api/contacts/:id/sync-retry
+const retrySyncContact = async (req, res) => {
+  try {
+    const contact = await Contact.findById(req.params.id);
+    if (!contact) {
+      return res.status(404).json({ message: 'Contact not found' });
+    }
+    await syncToWatiIfEnabled(contact);
+    res.json(contact);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
 // @desc    Import contacts from CSV
@@ -257,4 +307,6 @@ module.exports = {
   updateContact,
   deleteContact,
   importContacts,
+  syncAllContacts,
+  retrySyncContact,
 };

@@ -49,6 +49,8 @@ export const contactsAPI = {
   create: (data) => API.post('/contacts', data),
   update: (id, data) => API.put(`/contacts/${id}`, data),
   delete: (id) => API.delete(`/contacts/${id}`),
+  syncAll: () => API.post('/contacts/sync-all'),
+  retrySync: (id) => API.post(`/contacts/${id}/sync-retry`),
   importCSV: (file) => {
     const formData = new FormData();
     formData.append('file', file);
