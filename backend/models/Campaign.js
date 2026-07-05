@@ -26,7 +26,7 @@ const campaignSchema = new mongoose.Schema(
     // ── Template Variable Mapping ──────────────────────────────────────────────
     // Maps {{1}}, {{2}}, {{3}} → contact field names in order
     // e.g. ['name', 'phone'] means {{1}}=contact.name, {{2}}=contact.phone
-    templateVariables: { type: [String], default: [] },
+    templateVariables: { type: mongoose.Schema.Types.Mixed, default: [] },
 
     // Number of {{n}} placeholders in the template body
     // Must match parameters.length sent to Meta API — prevents #132000 error
@@ -44,7 +44,7 @@ const campaignSchema = new mongoose.Schema(
     // partial = some sent, some failed
     status: {
       type: String,
-      enum: ['draft', 'sending', 'completed', 'partial', 'failed'],
+      enum: ['draft', 'sending', 'processing', 'completed', 'completed_with_errors', 'partial', 'failed'],
       default: 'draft',
     },
   },

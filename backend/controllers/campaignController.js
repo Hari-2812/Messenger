@@ -4,6 +4,8 @@ const Template = require('../models/Template');
 const MessageLog = require('../models/MessageLog');
 const ProviderFactory = require('../services/ProviderFactory');
 const campaignQueue = require('../services/campaignQueue');
+const contactSyncService = require('../services/contactSyncService');
+const mongoose = require('mongoose');
 
 // @desc    Get all campaigns (paginated)
 // @route   GET /api/campaigns
@@ -27,15 +29,27 @@ const getCampaigns = async (req, res) => {
 // @desc    Create a new campaign
 // @route   POST /api/campaigns
 const createCampaign = async (req, res) => {
-  const { campaignName, templateId, metaTemplateName, metaTemplateLanguage, contactIds, send } = req.body;
+  const {
+    campaignName,
+    templateId,
+    metaTemplateName,
+    metaTemplateLanguage,
+    contactIds,
+    send,
+    templateVariables,
+    templateParamCount,
+    metaTemplateBodyText,
+  } = req.body;
 
   if (!campaignName || !metaTemplateName || !contactIds || contactIds.length === 0) {
     return res.status(400).json({
-      message: 'Campaign name, a Meta template name, and at least one contact are required',
+      message: 'Campaign name, a WATI template name, and at least one contact are required',
     });
   }
 
-  // Validate local template if provided (optional reference)
+  const provider = ProviderFactory.getProvider();
+
+  // Validate local template reference if provided
   let template = null;
   if (templateId) {
     template = await Template.findById(templateId);
@@ -44,9 +58,42 @@ const createCampaign = async (req, res) => {
     }
   }
 
+  // If provider is WATI, verify template exists in our synced WATI templates
+  if (provider === 'wati') {
+    const isIdValid = templateId && mongoose.isValidObjectId(templateId);
+    const watiTemplate = await Template.findOne({
+      $or: [
+        ...(isIdValid ? [{ _id: templateId }] : []),
+        { title: metaTemplateName },
+        { metaName: metaTemplateName },
+      ],
+      source: 'wati',
+    });
+    if (!watiTemplate) {
+      return res.status(400).json({
+        message: `WATI template "${metaTemplateName}" not found. Please sync templates first via Templates → Sync WATI Templates.`,
+      });
+    }
+  }
+
   const contacts = await Contact.find({ _id: { $in: contactIds } });
   if (contacts.length === 0) {
     return res.status(400).json({ message: 'No valid contacts found for the provided IDs' });
+  }
+
+  // Auto-sync any unsynced contacts before campaign creation (WATI only)
+  if (provider === 'wati') {
+    console.log(`[Campaign] Auto-syncing ${contacts.length} contacts before campaign creation...`);
+    for (const contact of contacts) {
+      if (contact.syncStatus !== 'synced') {
+        try {
+          await contactSyncService.syncSingleContact(contact);
+          console.log(`[Campaign] Auto-synced contact ${contact._id} (${contact.phone})`);
+        } catch (syncErr) {
+          console.warn(`[Campaign] Auto-sync failed for contact ${contact._id}: ${syncErr.message}`);
+        }
+      }
+    }
   }
 
   const campaign = await Campaign.create({
@@ -54,17 +101,20 @@ const createCampaign = async (req, res) => {
     templateId: templateId || null,
     metaTemplateName,
     metaTemplateLanguage: metaTemplateLanguage || 'en_US',
+    metaTemplateBodyText: metaTemplateBodyText || null,
+    templateVariables: templateVariables || [],
+    templateParamCount: templateParamCount || 0,
     contactIds: contacts.map((c) => c._id),
     totalContacts: contacts.length,
-    provider: ProviderFactory.getProvider(),
+    provider,
     createdBy: req.user?._id || null,
-    status: send ? 'sending' : 'draft',
+    status: send ? 'processing' : 'draft',
   });
 
   const populated = await Campaign.findById(campaign._id).populate('templateId', 'title source');
 
   if (send) {
-    // Respond immediately — send in background
+    // Respond immediately — process in background
     res.status(202).json({
       ...populated.toObject(),
       _queued: true,
@@ -99,7 +149,7 @@ const previewCampaign = async (req, res) => {
     contactId: contact._id,
     name: contact.name,
     phone: contact.phone,
-    message: `📨 Meta template "${metaTemplateName}" will be sent to this contact`,
+    message: `📨 WATI template "${metaTemplateName}" will be sent to this contact`,
   }));
 
   res.json(previews);
@@ -114,12 +164,15 @@ const sendCampaign = async (req, res) => {
     return res.status(404).json({ message: 'Campaign not found' });
   }
 
-  if (campaign.status === 'completed' || campaign.status === 'sending' || campaign.status === 'partial') {
-    return res.status(400).json({ message: `Campaign cannot be sent — current status: ${campaign.status}` });
+  const blockStatuses = ['completed', 'processing', 'completed_with_errors', 'partial'];
+  if (blockStatuses.includes(campaign.status)) {
+    return res.status(400).json({
+      message: `Campaign cannot be sent — current status: ${campaign.status}`,
+    });
   }
 
   if (!campaign.metaTemplateName) {
-    return res.status(400).json({ message: 'Campaign has no Meta template configured' });
+    return res.status(400).json({ message: 'Campaign has no WATI template configured' });
   }
 
   const template = campaign.templateId ? await Template.findById(campaign.templateId) : null;
@@ -129,7 +182,22 @@ const sendCampaign = async (req, res) => {
     return res.status(400).json({ message: 'No valid contacts found for this campaign' });
   }
 
-  campaign.status = 'sending';
+  // Auto-sync unsynced contacts before sending (WATI only)
+  if (campaign.provider === 'wati') {
+    console.log(`[Campaign] Auto-syncing ${contacts.length} contacts before send...`);
+    for (const contact of contacts) {
+      if (contact.syncStatus !== 'synced') {
+        try {
+          await contactSyncService.syncSingleContact(contact);
+          console.log(`[Campaign] Auto-synced contact ${contact._id} (${contact.phone})`);
+        } catch (syncErr) {
+          console.warn(`[Campaign] Auto-sync failed for contact ${contact._id}: ${syncErr.message}`);
+        }
+      }
+    }
+  }
+
+  campaign.status = 'processing';
   await campaign.save();
 
   // Respond immediately — process in background

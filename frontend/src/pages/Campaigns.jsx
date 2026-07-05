@@ -3,11 +3,23 @@ import { campaignsAPI, contactsAPI, templatesAPI } from '../services/api';
 import { getSocket, connectSocket } from '../services/socket';
 
 const statusColors = {
-  draft:     'bg-slate-100 text-slate-700 border-slate-200',
-  sending:   'bg-amber-50 text-amber-700 border-amber-200',
-  completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  partial:   'bg-orange-50 text-orange-700 border-orange-200',
-  failed:    'bg-red-50 text-red-700 border-red-200',
+  draft:                 'bg-slate-100 text-slate-700 border-slate-200',
+  sending:               'bg-amber-50 text-amber-700 border-amber-200',
+  processing:            'bg-blue-50 text-blue-700 border-blue-200',
+  completed:             'bg-emerald-50 text-emerald-700 border-emerald-200',
+  completed_with_errors: 'bg-orange-50 text-orange-700 border-orange-200',
+  partial:               'bg-orange-50 text-orange-700 border-orange-200',
+  failed:                'bg-red-50 text-red-700 border-red-200',
+};
+
+const statusLabel = {
+  draft:                 'Draft',
+  sending:               'Sending…',
+  processing:            '⚙ Processing…',
+  completed:             '✅ Completed',
+  completed_with_errors: '⚠ Partial',
+  partial:               '⚠ Partial',
+  failed:                '✗ Failed',
 };
 
 const categoryColors = {
@@ -762,7 +774,7 @@ const Campaigns = () => {
                     </td>
                     <td className="py-3.5 px-4">
                       <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold border ${statusColors[campaign.status] || 'bg-slate-100 text-slate-600 border-slate-200'}`}>
-                        {campaign.status}
+                        {statusLabel[campaign.status] || campaign.status}
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-right">
@@ -774,13 +786,13 @@ const Campaigns = () => {
                           Send Broadcast
                         </button>
                       )}
-                      {campaign.status === 'sending' && (
-                        <span className="text-xs text-amber-600 font-bold flex items-center justify-end gap-1.5">
+                      {(campaign.status === 'sending' || campaign.status === 'processing') && (
+                        <span className="text-xs text-blue-600 font-bold flex items-center justify-end gap-1.5">
                           <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                           </svg>
-                          Queued...
+                          Processing…
                         </span>
                       )}
                     </td>
