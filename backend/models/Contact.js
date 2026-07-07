@@ -27,6 +27,8 @@ const contactSchema = new mongoose.Schema(
     },
     lastMessageAt: { type: Date, default: null },
     customFields: { type: mongoose.Schema.Types.Mixed, default: {} },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

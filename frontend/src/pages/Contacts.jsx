@@ -116,14 +116,15 @@ const Contacts = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this contact?')) return;
+    if (!window.confirm('Delete this contact from CRM and WATI?')) return;
     try {
+      setSuccess('Deleting from WATI...');
       await contactsAPI.delete(id);
       setSuccess('Contact deleted successfully');
       fetchContacts(page, search);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError(err.response?.data?.message || 'Delete failed');
+      setError(err.response?.data?.message || 'WATI delete failed');
     }
   };
 
@@ -133,7 +134,7 @@ const Contacts = () => {
     
     setIsBulkDeleting(true);
     setError('');
-    setSuccess('');
+    setSuccess('Deleting from WATI...');
     
     try {
       const res = await contactsAPI.bulkDelete({ ids: Array.from(selectedIds) });
@@ -245,6 +246,12 @@ const Contacts = () => {
         return (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700 border border-red-200">
             🔴 Failed
+          </span>
+        );
+      case 'delete_failed':
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700 border border-red-200" title="WATI delete failed">
+            🔴 Delete Failed
           </span>
         );
       default:
@@ -503,7 +510,7 @@ const Contacts = () => {
                               disabled={retryingId === contact._id}
                               className="text-xs font-semibold text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100/70 px-2 py-1 rounded-md transition disabled:opacity-50"
                             >
-                              {retryingId === contact._id ? 'Syncing...' : 'Retry Sync'}
+                              {retryingId === contact._id ? (contact.syncStatus === 'delete_failed' ? 'Deleting...' : 'Syncing...') : (contact.syncStatus === 'delete_failed' ? 'Retry Delete' : 'Retry Sync')}
                             </button>
                           )}
                           <button
@@ -579,7 +586,7 @@ const Contacts = () => {
                       disabled={retryingId === contact._id}
                       className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg transition active:bg-indigo-100 flex-1 text-center disabled:opacity-50"
                     >
-                      {retryingId === contact._id ? 'Syncing...' : 'Retry Sync'}
+                      {retryingId === contact._id ? (contact.syncStatus === 'delete_failed' ? 'Deleting...' : 'Syncing...') : (contact.syncStatus === 'delete_failed' ? 'Retry Delete' : 'Retry Sync')}
                     </button>
                   )}
                   <button

@@ -125,6 +125,7 @@ const syncAllContacts = async () => {
 
   const contacts = await Contact.find({
     $or: [{ syncStatus: { $in: ['pending', 'failed'] } }, { watiContactId: null }],
+    isDeleted: { $ne: true }
   });
 
   return syncBulkContacts(contacts);

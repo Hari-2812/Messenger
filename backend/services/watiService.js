@@ -711,16 +711,21 @@ const updateContact = async (phone, contact) => {
   return result;
 };
 
-const deleteContact = async (phone) => {
+const deleteContact = async (contact) => {
+  const phone = typeof contact === 'object' ? contact.phone : contact;
   const normalized = normalizePhone(phone);
   try {
-    const result = await request(`deleteContact/${normalized}`, {
-      method: 'POST'
+    const result = await request(`deleteContact`, {
+      method: 'DELETE',
+      query: { whatsappNumber: normalized }
     }, 'WATI.deleteContact');
-    return result;
+    return { success: true, result };
   } catch (err) {
-    console.warn(`[WATI] Delete contact endpoint failed or unsupported: ${err.message}`);
-    return { success: false, error: err.message };
+    if (err.status === 404 || err.message?.toLowerCase().includes('not found')) {
+      return { success: true, alreadyDeleted: true };
+    }
+    console.error(`[WATI] Full WATI Error on delete: ${err.message}`, err.watiResponse || '');
+    throw err;
   }
 };
 

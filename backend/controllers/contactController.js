@@ -62,8 +62,8 @@ const getContacts = async (req, res) => {
   const search = req.query.search?.trim();
 
   const filter = search
-    ? { $or: [{ name: { $regex: search, $options: 'i' } }, { phone: { $regex: search, $options: 'i' } }] }
-    : {};
+    ? { $or: [{ name: { $regex: search, $options: 'i' } }, { phone: { $regex: search, $options: 'i' } }], isDeleted: { $ne: true } }
+    : { isDeleted: { $ne: true } };
 
   const [contacts, total] = await Promise.all([
     Contact.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
@@ -170,13 +170,21 @@ const deleteContact = async (req, res) => {
 
   if (ProviderFactory.getProvider() === 'wati') {
     try {
-      await watiService.deleteContact(contact.phone);
+      console.log(`[Contact Delete] Deleting WATI Contact: ${contact.phone}`);
+      const watiRes = await watiService.deleteContact(contact);
+      console.log(`[Contact Delete] WATI Delete Response:`, watiRes);
     } catch (err) {
-      console.warn(`[WATI] Failed to delete contact from WATI: ${err.message}`);
+      console.error(`[Contact Delete] Full WATI Error: ${err.message}`);
+      contact.syncStatus = 'delete_failed';
+      contact.syncError = err.message;
+      await contact.save();
+      return res.status(500).json({ message: 'WATI delete failed', error: err.message });
     }
   }
 
-  await contact.deleteOne();
+  contact.isDeleted = true;
+  contact.deletedAt = new Date();
+  await contact.save();
   res.json({ message: 'Contact deleted successfully' });
 };
 
@@ -195,20 +203,38 @@ const bulkDeleteContacts = async (req, res) => {
   }
 
   let deletedCount = 0;
+  let failedCount = 0;
   
   for (const contact of contacts) {
+    let success = true;
     if (ProviderFactory.getProvider() === 'wati') {
       try {
-        await watiService.deleteContact(contact.phone);
+        console.log(`[Contact Bulk Delete] Deleting WATI Contact: ${contact.phone}`);
+        const watiRes = await watiService.deleteContact(contact);
+        console.log(`[Contact Bulk Delete] WATI Delete Response:`, watiRes);
       } catch (err) {
-        console.warn(`[WATI] Failed to delete contact ${contact.phone} from WATI: ${err.message}`);
+        console.error(`[Contact Bulk Delete] Full WATI Error: ${err.message}`);
+        contact.syncStatus = 'delete_failed';
+        contact.syncError = err.message;
+        await contact.save();
+        success = false;
+        failedCount++;
       }
     }
-    await contact.deleteOne();
-    deletedCount++;
+    
+    if (success) {
+      contact.isDeleted = true;
+      contact.deletedAt = new Date();
+      await contact.save();
+      deletedCount++;
+    }
   }
 
-  res.json({ message: `Successfully deleted ${deletedCount} contacts` });
+  res.json({ 
+    message: `Successfully deleted ${deletedCount} contacts` + (failedCount > 0 ? `, ${failedCount} failed` : ''),
+    deleted: deletedCount,
+    failed: failedCount
+  });
 };
 
 // @desc    Sync all unsynced contacts to WATI
@@ -239,6 +265,17 @@ const syncAllContacts = async (req, res) => {
 // @desc    Retry sync for a specific contact
 // @route   POST /api/contacts/:id/sync-retry
 const retrySyncContact = async (req, res) => {
+  const contact = await Contact.findById(req.params.id);
+  if (!contact) {
+    return res.status(404).json({ success: false, message: 'Contact not found' });
+  }
+
+  // If retrying a failed delete, route it to deleteContact
+  if (contact.syncStatus === 'delete_failed') {
+    req.params.id = contact._id;
+    return deleteContact(req, res);
+  }
+
   const syncResult = await contactSyncService.syncContactById(req.params.id);
 
   if (syncResult.error === 'Contact not found') {
