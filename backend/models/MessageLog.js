@@ -22,6 +22,7 @@ const messageLogSchema = new mongoose.Schema(
     deliveredAt: { type: Date, default: null },
     readAt: { type: Date, default: null },
     failureReason: { type: String, default: null },
+    errorCategory: { type: String, default: null },
     timestamp: { type: Date, default: Date.now },
   },
   { timestamps: true }

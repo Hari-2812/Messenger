@@ -167,6 +167,7 @@ const sendSingleMessage = async (item) => {
       sentAt: result.success ? (result.sentAt || new Date()) : null,
       localMessageId,
       failureReason: result.success ? null : (result.error || 'WATI API rejected message'),
+      errorCategory: result.errorCategory || null,
     };
 
     if (result.metaMessageId) logEntry.metaMessageId = result.metaMessageId;
@@ -222,6 +223,7 @@ const sendSingleMessage = async (item) => {
       status: 'failed',
       localMessageId,
       failureReason: error.message,
+      errorCategory: (error.watiResponse?.info?.toLowerCase().includes('credit') || error.message?.toLowerCase().includes('credit')) ? 'Billing Error' : 'API Error',
     });
 
     return { success: false, error: error.message };

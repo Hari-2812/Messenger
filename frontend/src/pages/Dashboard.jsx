@@ -162,6 +162,15 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {stats.hasBillingError && (
+        <div className="alert-error flex items-start gap-3 p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg">
+          <span className="text-xl">⚠️</span>
+          <div>
+            <h4 className="font-bold">WATI credits exhausted</h4>
+            <p className="text-sm mt-1">Recharge your WATI account to continue sending campaigns.</p>
+          </div>
+        </div>
+      )}
 
       {/* ── Page Header ── */}
       <div className="flex items-center justify-between">

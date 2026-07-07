@@ -57,6 +57,11 @@ const getDashboardStats = async (req, res) => {
 
   const [totalCampaigns, totalContacts, totalLocalTemplates] = entityCounts;
 
+  const hasBillingError = await MessageLog.exists({
+    errorCategory: 'Billing Error',
+    timestamp: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+  });
+
   res.json({
     totalContacts,
     totalLocalTemplates,
@@ -68,6 +73,7 @@ const getDashboardStats = async (req, res) => {
     totalMessagesPending: (statusMap.pending || 0) + (statusMap.accepted || 0),
     totalMessages: messageStats[0]?.total?.[0]?.count || 0,
     recentCampaigns,
+    hasBillingError: !!hasBillingError,
   });
 };
 

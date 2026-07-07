@@ -520,12 +520,16 @@ const request = async (
 
 
     } catch (error) {
+      const errStrLower = (error.message || '').toLowerCase() + (error.watiResponse?.info || '').toLowerCase();
+      const isBillingError = errStrLower.includes('credit') || errStrLower.includes('billing') || errStrLower.includes('balance');
+
       const isRetryable =
+        !isBillingError && (
         error.status === 429 ||
         (error.status && RETRYABLE_STATUSES.has(error.status)) ||
         error.message?.includes('fetch failed') ||
         error.message?.includes('ECONNRESET') ||
-        error.message?.includes('ETIMEDOUT');
+        error.message?.includes('ETIMEDOUT'));
 
       if (attempt < MAX_RETRIES && isRetryable) {
         await sleep(RETRY_DELAY_MS[attempt]);
@@ -767,13 +771,31 @@ const sendTemplateMessage = async (
 
   const isSuccess = result.result === true || result.result === 'success' || result.status === 'sent' || result.success === true || false;
 
+  let errorString = null;
+  let errorCategory = null;
+
+  if (!isSuccess) {
+    errorString = result.error || result.message || result.info || JSON.stringify(result);
+    const errStrLower = errorString.toLowerCase();
+    if (errStrLower.includes('credit') || errStrLower.includes('billing') || errStrLower.includes('balance')) {
+      errorCategory = 'Billing Error';
+    } else if (errStrLower.includes('invalid') || errStrLower.includes('phone') || errStrLower.includes('number')) {
+      errorCategory = 'Invalid Number';
+    } else if (errStrLower.includes('template') || errStrLower.includes('parameter')) {
+      errorCategory = 'Template Error';
+    } else {
+      errorCategory = 'API Error';
+    }
+  }
+
   return {
     success: isSuccess,
     watiMessageId: result.id || result.messageId || result.rawId || result.whatsappMessageId || null,
     provider: 'wati',
     status: 'sent',
     sentAt: new Date(),
-    error: isSuccess ? null : (result.error || result.message || result.info || JSON.stringify(result))
+    error: errorString,
+    errorCategory: errorCategory
   };
 };
 
