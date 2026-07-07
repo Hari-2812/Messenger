@@ -765,13 +765,15 @@ const sendTemplateMessage = async (
     }
   }, 'WATI.sendTemplateMessage');
 
+  const isSuccess = result.result === true || result.result === 'success' || result.status === 'sent' || result.success === true || false;
+
   return {
-    success: result.result === true || result.result === 'success' || result.status === 'sent' || result.success === true || false,
+    success: isSuccess,
     watiMessageId: result.id || result.messageId || result.rawId || result.whatsappMessageId || null,
     provider: 'wati',
     status: 'sent',
     sentAt: new Date(),
-    error: result.error || result.message || null
+    error: isSuccess ? null : (result.error || result.message || result.info || JSON.stringify(result))
   };
 };
 

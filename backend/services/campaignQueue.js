@@ -89,13 +89,15 @@ const sendSingleMessage = async (item) => {
     provider,
     campaignName,
     broadcastName,
+    index,
+    total,
   } = item;
 
   const localMessageId = `${campaignId}-${contactId}-${Date.now()}`;
 
   // ── Debug: log what we are about to send ──────────────────────────────────
   console.log(
-    `[CampaignQueue] ▶ Sending | provider: ${provider} | template: "${templateName}" | ` +
+    `[CampaignQueue] ▶ Sending ${index}/${total} | provider: ${provider} | template: "${templateName}" | ` +
     `phone: ${phone} | params: ${JSON.stringify(parameters)}`
   );
 
@@ -237,25 +239,26 @@ const sendSingleMessage = async (item) => {
  * Send items in batches with concurrency limit.
  * Emits socket.io progress events after every batch.
  */
-const sendWithConcurrency = async (items, concurrency = 5, io = null, campaignId = null) => {
+const sendWithConcurrency = async (items, batchSize = 20, io = null, campaignId = null) => {
   const results = { sent: 0, failed: 0, errors: [] };
   const total = items.length;
 
-  for (let i = 0; i < items.length; i += concurrency) {
-    const batch = items.slice(i, i + concurrency);
-    const batchResults = await Promise.allSettled(
-      batch.map((item) => sendSingleMessage(item))
-    );
-
-    for (const result of batchResults) {
-      if (result.status === 'fulfilled') {
-        result.value.success ? results.sent++ : results.failed++;
-        if (!result.value.success && result.value.error) {
-          results.errors.push(result.value.error);
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    
+    // Strict sequential processing to avoid WATI API race conditions on broadcast creation
+    for (const item of batch) {
+      try {
+        const result = await sendSingleMessage(item);
+        if (result.success) {
+          results.sent++;
+        } else {
+          results.failed++;
+          if (result.error) results.errors.push(result.error);
         }
-      } else {
+      } catch (err) {
         results.failed++;
-        results.errors.push(result.reason?.message || 'Unknown error');
+        results.errors.push(err.message || 'Unknown error');
       }
     }
 
@@ -271,7 +274,7 @@ const sendWithConcurrency = async (items, concurrency = 5, io = null, campaignId
       });
     }
     
-    if (i + concurrency < items.length) {
+    if (i + batchSize < items.length) {
       await sleep(1000); // 1-second delay between batches
     }
   }
@@ -293,7 +296,7 @@ const sendWithConcurrency = async (items, concurrency = 5, io = null, campaignId
  *   processing → failed                (all failed or exception)
  */
 const processCampaignWithQueue = async (campaign, template, contacts, io = null) => {
-  const concurrency = parseInt(process.env.CAMPAIGN_CONCURRENCY || '5', 10);
+  const batchSize = parseInt(process.env.CAMPAIGN_BATCH_SIZE || '20', 10);
   const provider = campaign.provider || ProviderFactory.getProvider();
 
   if (!campaign.metaTemplateName) {
@@ -319,13 +322,13 @@ const processCampaignWithQueue = async (campaign, template, contacts, io = null)
     `  Variables:  ${JSON.stringify(campaign.templateVariables)}\n` +
     `  ParamCount: ${campaign.templateParamCount || 0}\n` +
     `  Recipients: ${contacts.length}\n` +
-    `  Concurrency:${concurrency}`
+    `  BatchSize:  ${batchSize}`
   );
 
   // Build one send item per contact
   const sharedBroadcastName = `${campaign.campaignName}-${campaign._id.toString()}`;
 
-  const items = contacts.map((contact) => {
+  const items = contacts.map((contact, index) => {
     const parameters = buildTemplateParams(campaign, contact);
 
     // Build human-readable preview by substituting {{n}} placeholders
@@ -352,35 +355,41 @@ const processCampaignWithQueue = async (campaign, template, contacts, io = null)
       provider,
       campaignName:    campaign.campaignName,
       broadcastName:   sharedBroadcastName,
+      index:           index + 1,
+      total:           contacts.length,
     };
   });
 
   try {
     const results = await sendWithConcurrency(
       items,
-      concurrency,
+      batchSize,
       io,
       campaign._id.toString()
     );
 
+    // Get true counts from database
+    const finalSentCount = await MessageLog.countDocuments({ campaignId: campaign._id, status: 'sent' });
+    const finalFailedCount = await MessageLog.countDocuments({ campaignId: campaign._id, status: 'failed' });
+
     // ── Determine final campaign status ────────────────────────────────────
     let finalStatus;
-    if (results.sent === 0) {
+    if (finalSentCount === 0) {
       finalStatus = 'failed';
     } else {
       finalStatus = 'processing';
     }
 
-    campaign.sentCount   = results.sent;
-    campaign.failedCount = results.failed;
+    campaign.sentCount   = finalSentCount;
+    campaign.failedCount = finalFailedCount;
     campaign.status      = finalStatus;
     await campaign.save();
 
     console.log(
       `[CampaignQueue] ═══ Campaign Done ═══\n` +
       `  Name:   "${campaign.campaignName}"\n` +
-      `  Sent:   ${results.sent}\n` +
-      `  Failed: ${results.failed}\n` +
+      `  Sent:   ${finalSentCount}\n` +
+      `  Failed: ${finalFailedCount}\n` +
       `  Status: ${finalStatus}`
     );
 
@@ -392,8 +401,8 @@ const processCampaignWithQueue = async (campaign, template, contacts, io = null)
       io.to(`campaign:${campaign._id}`).emit('campaign:completed', {
         campaignId:  campaign._id,
         status:      finalStatus,
-        sentCount:   results.sent,
-        failedCount: results.failed,
+        sentCount:   finalSentCount,
+        failedCount: finalFailedCount,
         total:       contacts.length,
       });
     }
