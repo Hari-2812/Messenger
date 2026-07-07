@@ -374,10 +374,14 @@ const processCampaignWithQueue = async (campaign, template, contacts, io = null)
 
     // ── Determine final campaign status ────────────────────────────────────
     let finalStatus;
-    if (finalSentCount === 0) {
+    if (finalSentCount > 0 && finalFailedCount > 0) {
+      finalStatus = 'completed_with_errors';
+    } else if (finalSentCount === contacts.length) {
+      finalStatus = 'completed';
+    } else if (finalFailedCount === contacts.length || finalSentCount === 0) {
       finalStatus = 'failed';
     } else {
-      finalStatus = 'processing';
+      finalStatus = 'completed'; // fallback
     }
 
     campaign.sentCount   = finalSentCount;

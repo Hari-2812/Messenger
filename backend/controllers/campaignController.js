@@ -77,6 +77,9 @@ const createCampaign = async (req, res) => {
   }
 
   const contacts = await Contact.find({ _id: { $in: contactIds } });
+  console.log("Loaded recipients:", contacts.length);
+  console.log({ campaignId: req.params.id || 'new', selectedContacts: contacts.length });
+  
   if (contacts.length === 0) {
     return res.status(400).json({ message: 'No valid contacts found for the provided IDs' });
   }
@@ -177,6 +180,8 @@ const sendCampaign = async (req, res) => {
 
   const template = campaign.templateId ? await Template.findById(campaign.templateId) : null;
   const contacts = await Contact.find({ _id: { $in: campaign.contactIds } });
+  console.log("Loaded recipients:", contacts.length);
+  console.log({ campaignId: req.params.id, selectedContacts: contacts.length });
 
   if (contacts.length === 0) {
     return res.status(400).json({ message: 'No valid contacts found for this campaign' });
