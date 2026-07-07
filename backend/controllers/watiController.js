@@ -60,4 +60,17 @@ const syncTemplates = async (req, res) => {
   }
 };
 
-module.exports = { getSettings, syncTemplates };
+const testSend = async (req, res) => {
+  const { phone, template } = req.body;
+  if (!phone || !template) {
+    return res.status(400).json({ message: 'phone and template are required' });
+  }
+  try {
+    const result = await watiService.sendTemplateMessage(phone, template, []);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message, details: error.watiResponse || null });
+  }
+};
+
+module.exports = { getSettings, syncTemplates, testSend };

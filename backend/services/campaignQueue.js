@@ -96,10 +96,10 @@ const sendSingleMessage = async (item) => {
   const localMessageId = `${campaignId}-${contactId}-${Date.now()}`;
 
   // ── Debug: log what we are about to send ──────────────────────────────────
-  console.log(
-    `[CampaignQueue] ▶ Sending ${index}/${total} | provider: ${provider} | template: "${templateName}" | ` +
-    `phone: ${phone} | params: ${JSON.stringify(parameters)}`
-  );
+  console.log("================");
+  console.log("Sending:", phone);
+  console.log("Template:", templateName);
+  console.log("Variables:", JSON.stringify(parameters));
 
   try {
     if (!templateName) {
@@ -149,11 +149,11 @@ const sendSingleMessage = async (item) => {
     }
 
     // ── Debug: log provider response ──────────────────────────────────────
-    console.log(
-      `[CampaignQueue] ◀ Response | provider: ${provider} | phone: ${phone} | ` +
-      `success: ${result.success} | messageId: ${result.watiMessageId || result.metaMessageId || 'N/A'} | ` +
-      `error: ${result.error || 'none'}`
-    );
+    if (result.success) {
+      console.log("WATI SUCCESS:", JSON.stringify(result));
+    } else {
+      console.error("WATI FAILED:", result.error || JSON.stringify(result));
+    }
 
     const logStatus = result.success ? 'sent' : 'failed';
 
@@ -211,10 +211,7 @@ const sendSingleMessage = async (item) => {
 
   } catch (error) {
     // ── Full error body log ────────────────────────────────────────────────
-    console.error(
-      `[CampaignQueue] ✗ Exception | provider: ${provider} | phone: ${phone} | ` +
-      `template: "${templateName}" | error: ${error.message}`
-    );
+    console.error("WATI FAILED:", error.watiResponse || error.message);
 
     await MessageLog.create({
       campaignId,
@@ -313,16 +310,12 @@ const processCampaignWithQueue = async (campaign, template, contacts, io = null)
     return;
   }
 
-  console.log({ campaignId: campaign._id, totalContacts: contacts.length, templateName: campaign.metaTemplateName });
+  console.log({ campaignId: campaign._id, templateName: campaign.metaTemplateName, contactIds: contacts.length });
   console.log(
-    `[CampaignQueue] ═══ Starting Campaign ═══\n` +
-    `  Name:       "${campaign.campaignName}"\n` +
-    `  Provider:   ${provider}\n` +
-    `  Template:   ${campaign.metaTemplateName}\n` +
-    `  Variables:  ${JSON.stringify(campaign.templateVariables)}\n` +
-    `  ParamCount: ${campaign.templateParamCount || 0}\n` +
-    `  Recipients: ${contacts.length}\n` +
-    `  BatchSize:  ${batchSize}`
+    `================\n` +
+    `Campaign Started\n` +
+    `Total Contacts:${contacts.length}\n` +
+    `================`
   );
 
   // Build one send item per contact
