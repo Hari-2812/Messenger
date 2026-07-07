@@ -730,7 +730,7 @@ const sendMessage = async (phone, message) => {
   }, 'WATI.sendMessage');
 
   return {
-    success: result.result === 'success' || result.status === 'sent' || result.success || false,
+    success: result.result === true || result.result === 'success' || result.status === 'sent' || result.success === true || false,
     watiMessageId: result.id || result.messageId || null,
     provider: 'wati',
     status: 'sent',
@@ -766,8 +766,8 @@ const sendTemplateMessage = async (
   }, 'WATI.sendTemplateMessage');
 
   return {
-    success: result.result === 'success' || result.status === 'sent' || result.success || false,
-    watiMessageId: result.id || result.messageId || result.rawId || null,
+    success: result.result === true || result.result === 'success' || result.status === 'sent' || result.success === true || false,
+    watiMessageId: result.id || result.messageId || result.rawId || result.whatsappMessageId || null,
     provider: 'wati',
     status: 'sent',
     sentAt: new Date(),

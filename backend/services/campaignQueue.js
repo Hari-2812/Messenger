@@ -20,6 +20,8 @@ const watiService = require('./watiService');
 const MetaProvider = require('./MetaProvider');
 const ProviderFactory = require('./ProviderFactory');
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TEMPLATE PARAMETER BUILDER
 // ─────────────────────────────────────────────────────────────────────────────
@@ -86,6 +88,7 @@ const sendSingleMessage = async (item) => {
     previewMessage,
     provider,
     campaignName,
+    broadcastName,
   } = item;
 
   const localMessageId = `${campaignId}-${contactId}-${Date.now()}`;
@@ -129,7 +132,7 @@ const sendSingleMessage = async (item) => {
         parameters,         // plain string array, e.g. ['Hari', '919876543210']
         templateLanguage || 'en_US',
         {
-          broadcastName: `${campaignName || campaignId}-${Date.now()}`,
+          broadcastName: broadcastName || `${campaignName || campaignId}-${Date.now()}`,
           localMessageId,
         }
       );
@@ -267,6 +270,10 @@ const sendWithConcurrency = async (items, concurrency = 5, io = null, campaignId
         percent: progress,
       });
     }
+    
+    if (i + concurrency < items.length) {
+      await sleep(1000); // 1-second delay between batches
+    }
   }
 
   return results;
@@ -303,6 +310,7 @@ const processCampaignWithQueue = async (campaign, template, contacts, io = null)
     return;
   }
 
+  console.log({ campaignId: campaign._id, totalContacts: contacts.length, templateName: campaign.metaTemplateName });
   console.log(
     `[CampaignQueue] ═══ Starting Campaign ═══\n` +
     `  Name:       "${campaign.campaignName}"\n` +
@@ -315,6 +323,8 @@ const processCampaignWithQueue = async (campaign, template, contacts, io = null)
   );
 
   // Build one send item per contact
+  const sharedBroadcastName = `${campaign.campaignName}-${campaign._id.toString()}`;
+
   const items = contacts.map((contact) => {
     const parameters = buildTemplateParams(campaign, contact);
 
@@ -341,6 +351,7 @@ const processCampaignWithQueue = async (campaign, template, contacts, io = null)
       previewMessage,
       provider,
       campaignName:    campaign.campaignName,
+      broadcastName:   sharedBroadcastName,
     };
   });
 
