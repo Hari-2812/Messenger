@@ -180,6 +180,37 @@ const deleteContact = async (req, res) => {
   res.json({ message: 'Contact deleted successfully' });
 };
 
+// @desc    Bulk delete contacts
+// @route   POST /api/contacts/bulk-delete
+const bulkDeleteContacts = async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ message: 'No contact IDs provided' });
+  }
+
+  const contacts = await Contact.find({ _id: { $in: ids } });
+  
+  if (contacts.length === 0) {
+    return res.status(404).json({ message: 'No valid contacts found' });
+  }
+
+  let deletedCount = 0;
+  
+  for (const contact of contacts) {
+    if (ProviderFactory.getProvider() === 'wati') {
+      try {
+        await watiService.deleteContact(contact.phone);
+      } catch (err) {
+        console.warn(`[WATI] Failed to delete contact ${contact.phone} from WATI: ${err.message}`);
+      }
+    }
+    await contact.deleteOne();
+    deletedCount++;
+  }
+
+  res.json({ message: `Successfully deleted ${deletedCount} contacts` });
+};
+
 // @desc    Sync all unsynced contacts to WATI
 // @route   POST /api/contacts/sync-all
 const syncAllContacts = async (req, res) => {
@@ -309,6 +340,7 @@ module.exports = {
   createContact,
   updateContact,
   deleteContact,
+  bulkDeleteContacts,
   importContacts,
   syncAllContacts,
   retrySyncContact,

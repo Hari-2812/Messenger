@@ -383,14 +383,14 @@ const updateCampaignCounters = async (campaignId, io = null) => {
   const logs = await MessageLog.find({ campaignId });
   if (logs.length === 0) return;
 
-  const sentCount      = logs.filter((l) => ['accepted', 'sent', 'delivered', 'read'].includes(l.status)).length;
+  const sentCount      = logs.filter((l) => ['sent', 'delivered', 'read'].includes(l.status)).length;
   const deliveredCount = logs.filter((l) => ['delivered', 'read'].includes(l.status)).length;
   const readCount      = logs.filter((l) => l.status === 'read').length;
   const failedCount    = logs.filter((l) => l.status === 'failed').length;
-  const pendingCount   = logs.filter((l) => ['pending', 'accepted'].includes(l.status)).length;
+  const processingCount = logs.filter((l) => ['pending', 'sent'].includes(l.status)).length;
 
   let status;
-  if (pendingCount > 0)                    status = 'processing';
+  if (processingCount > 0)                 status = 'processing';
   else if (failedCount === logs.length)    status = 'failed';
   else if (failedCount > 0)               status = 'completed_with_errors';
   else                                    status = 'completed';

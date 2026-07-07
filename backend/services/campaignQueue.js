@@ -150,7 +150,7 @@ const sendSingleMessage = async (item) => {
       `error: ${result.error || 'none'}`
     );
 
-    const logStatus = result.success ? 'accepted' : 'failed';
+    const logStatus = result.success ? 'sent' : 'failed';
 
     const logEntry = {
       campaignId,
@@ -356,10 +356,8 @@ const processCampaignWithQueue = async (campaign, template, contacts, io = null)
     let finalStatus;
     if (results.sent === 0) {
       finalStatus = 'failed';
-    } else if (results.failed > 0) {
-      finalStatus = 'completed_with_errors';
     } else {
-      finalStatus = 'completed';
+      finalStatus = 'processing';
     }
 
     campaign.sentCount   = results.sent;

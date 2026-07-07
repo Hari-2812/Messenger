@@ -16,6 +16,8 @@ const Contacts = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   const fetchContacts = useCallback(async (p = 1, q = '') => {
     setLoading(true);
@@ -123,6 +125,45 @@ const Contacts = () => {
     } catch (err) {
       setError(err.response?.data?.message || 'Delete failed');
     }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.size} selected contacts from CRM and WATI?`)) return;
+    
+    setIsBulkDeleting(true);
+    setError('');
+    setSuccess('');
+    
+    try {
+      const res = await contactsAPI.bulkDelete({ ids: Array.from(selectedIds) });
+      setSuccess(res.data?.message || `Successfully deleted ${selectedIds.size} contacts`);
+      setSelectedIds(new Set());
+      fetchContacts(page, search);
+      setTimeout(() => setSuccess(''), 4000);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Bulk delete failed');
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedIds(new Set(contacts.map(c => c._id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleSelectOne = (id) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
   };
 
   const handleImport = async (e) => {
@@ -268,6 +309,15 @@ const Contacts = () => {
               disabled={importing}
             />
           </label>
+          {selectedIds.size > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              disabled={isBulkDeleting}
+              className="btn-secondary text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 transition disabled:opacity-50"
+            >
+              🗑 {isBulkDeleting ? 'Deleting...' : `Delete Selected (${selectedIds.size})`}
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -385,6 +435,14 @@ const Contacts = () => {
               <table className="w-full text-sm">
                 <thead className="bg-slate-50/75 border-b border-slate-100">
                   <tr>
+                    <th className="py-3.5 pl-4 pr-2 text-left">
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        checked={contacts.length > 0 && selectedIds.size === contacts.length}
+                        onChange={handleSelectAll}
+                      />
+                    </th>
                     <th className="text-left py-3.5 px-4 font-semibold text-slate-500">Contact Details</th>
                     <th className="text-left py-3.5 px-4 font-semibold text-slate-500">Phone</th>
                     <th className="text-left py-3.5 px-4 font-semibold text-slate-500">Sync Details</th>
@@ -395,6 +453,14 @@ const Contacts = () => {
                 <tbody className="divide-y divide-slate-100">
                   {contacts.map((contact) => (
                     <tr key={contact._id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="py-4 pl-4 pr-2">
+                        <input 
+                          type="checkbox"
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                          checked={selectedIds.has(contact._id)}
+                          onChange={() => handleSelectOne(contact._id)}
+                        />
+                      </td>
                       <td className="py-4 px-4">
                         <div className="font-semibold text-slate-900">{contact.name}</div>
                         <div className="text-xs text-slate-500 mt-0.5">{contact.email || 'No Email'}</div>
@@ -464,7 +530,15 @@ const Contacts = () => {
           {/* Mobile responsive Cards list */}
           <div className="grid grid-cols-1 gap-4 md:hidden">
             {contacts.map((contact) => (
-              <div key={contact._id} className="card p-4 space-y-3 bg-white border border-slate-100 rounded-2xl shadow-sm">
+              <div key={contact._id} className="card p-4 space-y-3 bg-white border border-slate-100 rounded-2xl shadow-sm relative pl-10">
+                <div className="absolute top-4 left-3">
+                  <input 
+                    type="checkbox"
+                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    checked={selectedIds.has(contact._id)}
+                    onChange={() => handleSelectOne(contact._id)}
+                  />
+                </div>
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="font-bold text-slate-900 text-sm">{contact.name}</h4>

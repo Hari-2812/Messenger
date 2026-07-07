@@ -4,6 +4,7 @@ const {
   createContact,
   updateContact,
   deleteContact,
+  bulkDeleteContacts,
   importContacts,
   syncAllContacts,
   retrySyncContact,
@@ -21,6 +22,7 @@ router.post('/', createContact);
 router.post('/import', upload.single('file'), importContacts);
 router.post('/sync-all', protect, syncAllContacts);
 router.post('/:id/sync-retry', protect, retrySyncContact);
+router.post('/bulk-delete', bulkDeleteContacts);
 router.put('/:id', updateContact);
 router.delete('/:id', deleteContact);
 

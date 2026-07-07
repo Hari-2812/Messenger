@@ -52,6 +52,7 @@ export const contactsAPI = {
   syncAll: () => API.post('/contacts/sync-all'),
   retrySync: (id) => API.post(`/contacts/${id}/sync-retry`),
   syncRetry: (id) => API.post(`/contacts/${id}/sync-retry`),
+  bulkDelete: (data) => API.post('/contacts/bulk-delete', data),
   importCSV: (file) => {
     const formData = new FormData();
     formData.append('file', file);
