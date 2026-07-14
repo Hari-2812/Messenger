@@ -14,67 +14,84 @@ const generateToken = (user) => {
 };
 
 const register = async (req, res) => {
-  console.log('[Auth API] Register request received:', req.body.email);
-  const { name, email, phone, password } = req.body;
+  console.log('==================================================');
+  console.log('[DEBUG] Route reached: POST /api/auth/register');
+  console.log('[DEBUG] Request body:', JSON.stringify(req.body, null, 2));
+  
+  const { firstName, lastName, companyName, email, phone, password } = req.body;
 
-  if (!name || !email || !phone || !password) {
-    console.log('[Auth API] Register failed: Missing required fields');
+  if (!firstName || !lastName || !companyName || !email || !phone || !password) {
+    console.log('[DEBUG] Validation result: FAILED (Missing required fields)');
     return res.status(400).json({ message: 'Please provide all required fields' });
   }
 
   const emailRegex = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
   if (!emailRegex.test(email)) {
-    console.log('[Auth API] Register failed: Invalid email format');
+    console.log('[DEBUG] Validation result: FAILED (Invalid email format)');
     return res.status(400).json({ message: 'Invalid email address' });
   }
 
   const phoneRegex = /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]*$/;
   if (!phoneRegex.test(phone)) {
-    console.log('[Auth API] Register failed: Invalid phone format');
+    console.log('[DEBUG] Validation result: FAILED (Invalid phone format)');
     return res.status(400).json({ message: 'Invalid phone format' });
   }
 
   const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
   if (!passwordRegex.test(password)) {
-    console.log('[Auth API] Register failed: Weak password');
+    console.log('[DEBUG] Validation result: FAILED (Weak password)');
     return res.status(400).json({ message: 'Password must be at least 8 characters and include uppercase, lowercase, number, and special character' });
   }
+
+  console.log('[DEBUG] Validation result: PASSED');
 
   // Check for duplicate email
   const userExists = await User.findOne({ email: email.toLowerCase().trim() });
   if (userExists) {
-    console.log('[Auth API] Register failed: Duplicate email:', email);
+    console.log('[DEBUG] MongoDB check: FAILED (Duplicate email)');
     return res.status(409).json({ message: 'User already exists with this email' });
   }
 
   // Check for duplicate phone
   const phoneExists = await User.findOne({ phone: phone.trim() });
   if (phoneExists) {
-    console.log('[Auth API] Register failed: Duplicate phone:', phone);
+    console.log('[DEBUG] MongoDB check: FAILED (Duplicate phone)');
     return res.status(409).json({ message: 'User already exists with this phone number' });
   }
 
-  // Split name into firstName and lastName
-  const nameParts = name.trim().split(' ');
-  const firstName = nameParts[0];
-  const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : ' ';
-
-  console.log('[Auth API] Saving new user to MongoDB...');
-  const user = await User.create({
-    firstName,
-    lastName,
-    email: email.toLowerCase().trim(),
-    phone: phone.trim(),
-    password, // Mongoose pre-save hook handles bcrypt hashing
-    lastLogin: new Date(),
-  });
+  console.log('[DEBUG] MongoDB save: STARTING');
+  let user;
+  try {
+    user = await User.create({
+      firstName,
+      lastName,
+      companyName,
+      email: email.toLowerCase().trim(),
+      phone: phone.trim(),
+      password, // Mongoose pre-save hook handles bcrypt hashing
+      lastLogin: new Date(),
+    });
+    console.log('[DEBUG] MongoDB save: SUCCESS');
+  } catch (err) {
+    console.log('[DEBUG] MongoDB save: FAILED (Error:', err.message, ')');
+    return res.status(500).json({ message: 'Database error during user creation' });
+  }
 
   if (user) {
-    console.log('[Auth API] User created successfully. Generating JWT...');
-    res.status(201).json({
+    console.log('[DEBUG] JWT generation: STARTING');
+    let token;
+    try {
+      token = generateToken(user);
+      console.log('[DEBUG] JWT generation: SUCCESS');
+    } catch (err) {
+      console.log('[DEBUG] JWT generation: FAILED (Error:', err.message, ')');
+      return res.status(500).json({ message: 'Error generating authentication token' });
+    }
+
+    const responsePayload = {
       success: true,
       message: 'Registration successful',
-      token: generateToken(user),
+      token,
       user: {
         _id: user._id,
         firstName: user.firstName,
@@ -82,9 +99,12 @@ const register = async (req, res) => {
         email: user.email,
         role: user.role,
       }
-    });
+    };
+    console.log('[DEBUG] Response payload:', JSON.stringify(responsePayload, null, 2));
+    res.status(201).json(responsePayload);
+    console.log('==================================================');
   } else {
-    console.log('[Auth API] Register failed: Invalid user data during creation');
+    console.log('[DEBUG] MongoDB save: FAILED (Invalid user data during creation)');
     res.status(400).json({ message: 'Invalid user data' });
   }
 };
@@ -145,7 +165,7 @@ const logout = async (req, res) => {
 
 const updateProfile = async (req, res) => {
   console.log('[Auth API] Update Profile request received for ID:', req.user.id);
-  const { name, phone } = req.body;
+  const { firstName, lastName, companyName, phone } = req.body;
 
   const user = await User.findById(req.user.id);
   if (!user) {
@@ -161,11 +181,9 @@ const updateProfile = async (req, res) => {
     }
   }
 
-  if (name) {
-    const nameParts = name.trim().split(' ');
-    user.firstName = nameParts[0];
-    user.lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : ' ';
-  }
+  user.firstName = firstName || user.firstName;
+  user.lastName = lastName || user.lastName;
+  user.companyName = companyName || user.companyName;
   user.phone = phone || user.phone;
 
   console.log('[Auth API] Saving updated profile to MongoDB...');
@@ -180,6 +198,7 @@ const updateProfile = async (req, res) => {
       lastName: user.lastName,
       email: user.email,
       phone: user.phone,
+      companyName: user.companyName,
       role: user.role,
       avatar: user.avatar,
     }
