@@ -1,204 +1,149 @@
 import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-
-const FeaturePill = ({ icon, text }) => (
-  <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 border border-white/20">
-    <span className="text-xl">{icon}</span>
-    <span className="text-sm text-white/90 font-medium">{text}</span>
-  </div>
-);
+import { Eye, EyeOff, LogIn, ShieldCheck } from 'lucide-react';
 
 const Login = () => {
   const { user, login, loading } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
-  const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const { register, handleSubmit, formState: { errors } } = useForm({
+    mode: 'onTouched',
+  });
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #4f46e5 100%)' }}>
-        <div className="spinner w-10 h-10" />
+      <div className="min-h-screen flex items-center justify-center bg-indigo-950">
+        <div className="spinner w-10 h-10 border-indigo-500 border-t-indigo-200" />
       </div>
     );
   }
 
   if (user) return <Navigate to="/" replace />;
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    if (!email.trim() || !password) {
-      setError('Please enter your email and password');
-      return;
-    }
+  const onSubmit = async (data) => {
     setSubmitting(true);
     try {
-      await login(email.trim(), password);
+      await login(data.email, data.password);
+      toast.success('Welcome back!');
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed. Please try again.');
+      toast.error(err.response?.data?.message || 'Login failed. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left Panel — Branding */}
-      <div
-        className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12"
-        style={{ background: 'linear-gradient(155deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%)' }}
-      >
-        {/* Logo */}
-        <div className="flex items-center gap-3">
-          <div
-            className="w-11 h-11 rounded-xl flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #25d366, #128c7e)' }}
-          >
-            <svg viewBox="0 0 24 24" fill="white" className="w-6 h-6">
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+    <div className="min-h-screen flex items-center justify-center bg-indigo-950 relative overflow-hidden p-6">
+      {/* Animated Background Gradients */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-500/30 rounded-full blur-[100px] animate-pulse"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-emerald-500/20 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '1s' }}></div>
+
+      <div className="w-full max-w-md bg-white/10 backdrop-blur-xl rounded-3xl p-8 sm:p-10 shadow-2xl border border-white/20 animate-fade-in relative z-10">
+        
+        {/* Logo and Brand */}
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-500/30 mb-4">
+            <svg viewBox="0 0 24 24" fill="white" className="w-8 h-8">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a7.003 7.003 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
               <path d="M11.5 2C6.262 2 2 6.262 2 11.5c0 1.836.528 3.55 1.442 5L2 22l5.664-1.41A9.427 9.427 0 0011.5 21c5.238 0 9.5-4.262 9.5-9.5S16.738 2 11.5 2z" opacity="0.8"/>
             </svg>
           </div>
-          <div>
-            <p className="text-white font-bold text-sm">WhatsApp CRM</p>
-            <p className="text-indigo-300 text-xs">WATI Platform v2.0</p>
-          </div>
+          <h2 className="text-3xl font-bold text-white tracking-tight">Welcome back</h2>
+          <p className="text-indigo-200 mt-2">Sign in to your dashboard</p>
         </div>
 
-        {/* Hero Text */}
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-4xl font-extrabold text-white leading-tight">
-              Enterprise WhatsApp<br />
-              <span style={{ background: 'linear-gradient(90deg, #25d366, #a5b4fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                Campaign Platform
-              </span>
-            </h1>
-            <p className="text-indigo-200 mt-4 text-sm leading-relaxed max-w-sm">
-              Manage campaigns, sync contacts, and track deliveries in real-time.
-              Powered by WATI & Meta WhatsApp APIs.
-            </p>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
+          <div className="form-group">
+            <label className="block text-sm font-medium text-indigo-100 mb-1">Email Address</label>
+            <input
+              type="email"
+              {...register('email', { 
+                required: 'Email is required',
+                pattern: { value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i, message: 'Invalid email address' }
+              })}
+              className={`w-full px-4 py-3 rounded-xl border ${errors.email ? 'border-red-400 focus:ring-red-400' : 'border-white/20 focus:ring-emerald-400'} bg-white/5 text-white placeholder-indigo-300/50 focus:outline-none focus:ring-2 focus:border-transparent transition-all`}
+              placeholder="you@company.com"
+            />
+            {errors.email && <p className="mt-1 text-xs text-red-300">{errors.email.message}</p>}
           </div>
 
-          <div className="space-y-3">
-            <FeaturePill icon="🚀" text="Bulk campaign sending with scheduling" />
-            <FeaturePill icon="📊" text="Real-time delivery analytics dashboard" />
-            <FeaturePill icon="💬" text="Two-way WhatsApp inbox & chat" />
-            <FeaturePill icon="🔄" text="WATI template & contact sync" />
-          </div>
-        </div>
-
-        {/* Bottom tagline */}
-        <p className="text-indigo-400 text-xs">Trusted by 500+ businesses · End-to-end encrypted</p>
-      </div>
-
-      {/* Right Panel — Form */}
-      <div className="flex-1 flex items-center justify-center p-6 bg-gray-50">
-        <div className="w-full max-w-md animate-fade-in">
-          {/* Mobile Logo */}
-          <div className="lg:hidden flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #25d366, #128c7e)' }}>
-              <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a7.003 7.003 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
-                <path d="M11.5 2C6.262 2 2 6.262 2 11.5c0 1.836.528 3.55 1.442 5L2 22l5.664-1.41A9.427 9.427 0 0011.5 21c5.238 0 9.5-4.262 9.5-9.5S16.738 2 11.5 2z" opacity="0.8"/>
-              </svg>
+          <div className="form-group">
+            <div className="flex justify-between items-center mb-1">
+              <label className="block text-sm font-medium text-indigo-100">Password</label>
+              <Link to="/forgot-password" className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors font-medium">
+                Forgot password?
+              </Link>
             </div>
-            <span className="font-bold text-gray-900">WhatsApp CRM</span>
-          </div>
-
-          <div className="card p-8">
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900">Welcome back</h2>
-              <p className="text-gray-500 text-sm mt-1">Sign in to your dashboard</p>
-            </div>
-
-            {error && (
-              <div className="alert-error mb-5 text-sm" role="alert">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0">
-                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-5" autoComplete="on">
-              <div className="form-group">
-                <label htmlFor="login-email" className="label">Email address</label>
-                <input
-                  id="login-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="input-field"
-                  placeholder="you@company.com"
-                  autoComplete="email"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="login-password" className="label">Password</label>
-                <div className="relative">
-                  <input
-                    id="login-password"
-                    type={showPass ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="input-field pr-10"
-                    placeholder="••••••••"
-                    autoComplete="current-password"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPass((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    tabIndex={-1}
-                  >
-                    {showPass ? (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                        <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-                        <line x1="1" y1="1" x2="23" y2="23"/>
-                      </svg>
-                    ) : (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                        <circle cx="12" cy="12" r="3"/>
-                      </svg>
-                    )}
-                  </button>
-                </div>
-              </div>
-
+            <div className="relative">
+              <input
+                type={showPass ? 'text' : 'password'}
+                {...register('password', { required: 'Password is required' })}
+                className={`w-full px-4 py-3 rounded-xl border ${errors.password ? 'border-red-400 focus:ring-red-400' : 'border-white/20 focus:ring-emerald-400'} bg-white/5 text-white placeholder-indigo-300/50 focus:outline-none focus:ring-2 focus:border-transparent transition-all pr-10`}
+                placeholder="••••••••"
+              />
               <button
-                type="submit"
-                id="login-submit-btn"
-                disabled={submitting}
-                className="btn-primary w-full py-3 text-base"
+                type="button"
+                onClick={() => setShowPass(!showPass)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-300 hover:text-white focus:outline-none"
+                tabIndex={-1}
               >
-                {submitting ? (
-                  <>
-                    <div className="spinner w-4 h-4 border-white/30 border-t-white" />
-                    Signing in…
-                  </>
-                ) : (
-                  <>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                      <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/>
-                    </svg>
-                    Sign In
-                  </>
-                )}
+                {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
-            </form>
+            </div>
+            {errors.password && <p className="mt-1 text-xs text-red-300">{errors.password.message}</p>}
           </div>
 
-          <p className="text-center text-xs text-gray-400 mt-6">
-            Protected by JWT · Secured with HTTPS
-          </p>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="remember"
+              {...register('remember')}
+              className="w-4 h-4 text-emerald-500 border-white/20 bg-white/10 rounded focus:ring-emerald-500 focus:ring-offset-indigo-900"
+            />
+            <label htmlFor="remember" className="ml-2 text-sm text-indigo-200">
+              Remember me for 30 days
+            </label>
+          </div>
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-3 px-4 rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none flex justify-center items-center gap-2 mt-2"
+          >
+            {submitting ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Signing in...
+              </>
+            ) : (
+              <>
+                Sign In
+                <LogIn size={18} />
+              </>
+            )}
+          </button>
+        </form>
+
+        <div className="mt-8 flex items-center gap-4">
+          <div className="flex-1 h-px bg-white/10"></div>
+          <p className="text-sm text-indigo-300">or</p>
+          <div className="flex-1 h-px bg-white/10"></div>
+        </div>
+
+        <p className="mt-6 text-center text-sm text-indigo-200">
+          Don't have an account?{' '}
+          <Link to="/register" className="text-emerald-400 font-bold hover:text-emerald-300 transition-colors">
+            Create an account
+          </Link>
+        </p>
+
+        <div className="mt-8 flex items-center justify-center gap-2 text-indigo-300/50 text-xs">
+          <ShieldCheck size={14} />
+          <p>Secured with enterprise-grade encryption</p>
         </div>
       </div>
     </div>
