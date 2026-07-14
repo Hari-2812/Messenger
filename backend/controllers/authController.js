@@ -15,9 +15,9 @@ const generateToken = (user) => {
 
 const register = async (req, res) => {
   console.log('[Auth API] Register request received:', req.body.email);
-  const { firstName, lastName, companyName, email, phone, password } = req.body;
+  const { name, email, phone, password } = req.body;
 
-  if (!firstName || !lastName || !companyName || !email || !phone || !password) {
+  if (!name || !email || !phone || !password) {
     console.log('[Auth API] Register failed: Missing required fields');
     return res.status(400).json({ message: 'Please provide all required fields' });
   }
@@ -54,11 +54,15 @@ const register = async (req, res) => {
     return res.status(409).json({ message: 'User already exists with this phone number' });
   }
 
+  // Split name into firstName and lastName
+  const nameParts = name.trim().split(' ');
+  const firstName = nameParts[0];
+  const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : ' ';
+
   console.log('[Auth API] Saving new user to MongoDB...');
   const user = await User.create({
     firstName,
     lastName,
-    companyName,
     email: email.toLowerCase().trim(),
     phone: phone.trim(),
     password, // Mongoose pre-save hook handles bcrypt hashing
@@ -141,7 +145,7 @@ const logout = async (req, res) => {
 
 const updateProfile = async (req, res) => {
   console.log('[Auth API] Update Profile request received for ID:', req.user.id);
-  const { firstName, lastName, companyName, phone } = req.body;
+  const { name, phone } = req.body;
 
   const user = await User.findById(req.user.id);
   if (!user) {
@@ -157,9 +161,11 @@ const updateProfile = async (req, res) => {
     }
   }
 
-  user.firstName = firstName || user.firstName;
-  user.lastName = lastName || user.lastName;
-  user.companyName = companyName || user.companyName;
+  if (name) {
+    const nameParts = name.trim().split(' ');
+    user.firstName = nameParts[0];
+    user.lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : ' ';
+  }
   user.phone = phone || user.phone;
 
   console.log('[Auth API] Saving updated profile to MongoDB...');
@@ -174,7 +180,6 @@ const updateProfile = async (req, res) => {
       lastName: user.lastName,
       email: user.email,
       phone: user.phone,
-      companyName: user.companyName,
       role: user.role,
       avatar: user.avatar,
     }
