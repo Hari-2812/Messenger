@@ -215,6 +215,22 @@ const startServer = async () => {
           timestamp: new Date().toISOString(),
         })
       );
+      
+      // Print registered auth routes for debugging
+      console.log('\n--- Registered Authentication Routes ---');
+      const authRoutes = app._router.stack.find(r => r.name === 'router' && r.regexp.test('/api/auth'));
+      if (authRoutes) {
+        authRoutes.handle.stack.forEach((layer) => {
+          if (layer.route) {
+            const methods = Object.keys(layer.route.methods).map(m => m.toUpperCase()).join(', ');
+            console.log(`${methods} /api/auth${layer.route.path}`);
+          }
+        });
+      } else {
+        console.log('WARNING: /api/auth routes are NOT registered.');
+      }
+      console.log('----------------------------------------\n');
+
       startDeliveryTimeoutJob();
     });
   } catch (error) {

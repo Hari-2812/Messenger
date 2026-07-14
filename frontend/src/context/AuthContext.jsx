@@ -48,14 +48,27 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
-  const logout = () => {
+  const updateProfile = async (userData) => {
+    const { data } = await authAPI.updateProfile(userData);
+    const savedUserData = { ...user, ...data };
+    localStorage.setItem('user', JSON.stringify(savedUserData));
+    setUser(savedUserData);
+    return data;
+  };
+
+  const logout = async () => {
+    try {
+      await authAPI.logout();
+    } catch (err) {
+      console.error('Logout API failed, proceeding with local logout', err);
+    }
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, register, logout, updateProfile, loading }}>
       {children}
     </AuthContext.Provider>
   );

@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { User as UserIcon, Building2, Phone, Mail, Camera, Save, Lock } from 'lucide-react';
 
 const Profile = () => {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   
   const { register, handleSubmit, formState: { errors } } = useForm({
@@ -21,13 +21,10 @@ const Profile = () => {
   const onSubmit = async (data) => {
     setSubmitting(true);
     try {
-      // Placeholder for actual API call
-      // await api.put('/auth/profile', data);
-      console.log('Updating profile with:', data);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await updateProfile(data);
       toast.success('Profile updated successfully!');
     } catch (err) {
-      toast.error('Failed to update profile.');
+      toast.error(err.response?.data?.message || 'Failed to update profile.');
     } finally {
       setSubmitting(false);
     }
