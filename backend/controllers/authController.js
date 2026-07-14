@@ -22,18 +22,36 @@ const register = async (req, res) => {
     return res.status(400).json({ message: 'Please provide all required fields' });
   }
 
+  const emailRegex = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
+  if (!emailRegex.test(email)) {
+    console.log('[Auth API] Register failed: Invalid email format');
+    return res.status(400).json({ message: 'Invalid email address' });
+  }
+
+  const phoneRegex = /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]*$/;
+  if (!phoneRegex.test(phone)) {
+    console.log('[Auth API] Register failed: Invalid phone format');
+    return res.status(400).json({ message: 'Invalid phone format' });
+  }
+
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+  if (!passwordRegex.test(password)) {
+    console.log('[Auth API] Register failed: Weak password');
+    return res.status(400).json({ message: 'Password must be at least 8 characters and include uppercase, lowercase, number, and special character' });
+  }
+
   // Check for duplicate email
   const userExists = await User.findOne({ email: email.toLowerCase().trim() });
   if (userExists) {
     console.log('[Auth API] Register failed: Duplicate email:', email);
-    return res.status(400).json({ message: 'User already exists with this email' });
+    return res.status(409).json({ message: 'User already exists with this email' });
   }
 
   // Check for duplicate phone
   const phoneExists = await User.findOne({ phone: phone.trim() });
   if (phoneExists) {
     console.log('[Auth API] Register failed: Duplicate phone:', phone);
-    return res.status(400).json({ message: 'User already exists with this phone number' });
+    return res.status(409).json({ message: 'User already exists with this phone number' });
   }
 
   console.log('[Auth API] Saving new user to MongoDB...');
@@ -51,12 +69,15 @@ const register = async (req, res) => {
     console.log('[Auth API] User created successfully. Generating JWT...');
     res.status(201).json({
       success: true,
-      _id: user._id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      role: user.role,
+      message: 'Registration successful',
       token: generateToken(user),
+      user: {
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role,
+      }
     });
   } else {
     console.log('[Auth API] Register failed: Invalid user data during creation');
@@ -90,13 +111,16 @@ const login = async (req, res) => {
 
   res.json({
     success: true,
-    _id: user._id,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    email: user.email,
-    role: user.role,
-    avatar: user.avatar,
+    message: 'Login successful',
     token: generateToken(user),
+    user: {
+      _id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role,
+      avatar: user.avatar,
+    }
   });
 };
 
@@ -143,14 +167,17 @@ const updateProfile = async (req, res) => {
 
   res.json({
     success: true,
-    _id: user._id,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    email: user.email,
-    phone: user.phone,
-    companyName: user.companyName,
-    role: user.role,
-    avatar: user.avatar,
+    message: 'Profile updated successfully',
+    user: {
+      _id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      phone: user.phone,
+      companyName: user.companyName,
+      role: user.role,
+      avatar: user.avatar,
+    }
   });
 };
 
