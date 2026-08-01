@@ -33,12 +33,35 @@ const Icons = {
   ),
 };
 
+/* ── Toast ────────────────────────────────────────────────────────────── */
+const Toast = ({ msg, type, onClose }) => {
+  useEffect(() => {
+    const t = setTimeout(onClose, 3500);
+    return () => clearTimeout(t);
+  }, [onClose]);
+  return (
+    <div
+      className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-2xl text-sm font-semibold animate-fade-in ${
+        type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
+      }`}
+    >
+      <span>{type === 'success' ? '✓' : '✗'}</span>
+      {msg}
+      <button onClick={onClose} className="ml-2 opacity-70 hover:opacity-100">✕</button>
+    </div>
+  );
+};
+
 export default function EmailCreateCampaign() {
   const [step, setStep] = useState(STEPS.TEMPLATE);
   
   // Data States
   const [templates, setTemplates] = useState([]);
   const [senders, setSenders] = useState([]);
+  const [toast, setToast] = useState(null);
+  
+  const showToast = (msg, type = 'success') => setToast({ msg, type });
+  const hideToast = () => setToast(null);
   
   // Selections
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -49,8 +72,8 @@ export default function EmailCreateCampaign() {
   // Contacts
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [importResult, setImportResult] = useState(null); // { imported, failed, etc. }
-  const [importedContactIds, setImportedContactIds] = useState([]); // IDs from the server
+  const [importResult, setImportResult] = useState(null);
+  const [importedContactIds, setImportedContactIds] = useState([]);
 
   // Submission
   const [submitting, setSubmitting] = useState(false);
@@ -65,9 +88,10 @@ export default function EmailCreateCampaign() {
   const fetchTemplates = async () => {
     try {
       const { data } = await emailTemplatesAPI.getAll();
-      setTemplates(data.templates || []);
+      setTemplates(Array.isArray(data) ? data : data.templates || []);
     } catch (err) {
       console.error('Failed to load templates', err);
+      showToast('Failed to load templates', 'error');
     }
   };
 
@@ -228,7 +252,12 @@ export default function EmailCreateCampaign() {
                   </div>
                 ))}
                 {templates.length === 0 && (
-                  <div className="col-span-3 text-center text-slate-400 py-8">No templates found. Please create one in the Templates section.</div>
+                  <div className="col-span-1 md:col-span-3 text-center py-10 bg-white/5 rounded-2xl border border-white/5">
+                    <div className="text-slate-400 mb-4">No Email Templates Found</div>
+                    <a href="/email/templates" className="px-6 py-2 bg-[#F57C20] hover:bg-orange-600 text-white font-medium rounded-xl inline-block transition-colors">
+                      Create Template
+                    </a>
+                  </div>
                 )}
               </div>
             </motion.div>
@@ -370,6 +399,9 @@ export default function EmailCreateCampaign() {
           </button>
         )}
       </div>
+
+      {/* Toast */}
+      {toast && <Toast msg={toast.msg} type={toast.type} onClose={hideToast} />}
 
     </div>
   );
