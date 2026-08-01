@@ -7,7 +7,7 @@ const {
   updateTemplate,
   deleteTemplate
 } = require('../controllers/emailTemplate.controller');
-const { protect } = require('../middleware/authMiddleware');
+const { protect } = require('../middleware/auth');
 
 router.use(protect); // Require auth for all template routes
 

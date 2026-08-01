@@ -8,7 +8,7 @@ const {
   getCampaignById,
   deleteCampaign
 } = require('../controllers/emailCampaign.controller');
-const { protect, admin } = require('../middleware/authMiddleware');
+const { protect } = require('../middleware/auth');
 
 const upload = multer({ dest: 'uploads/' });
 
