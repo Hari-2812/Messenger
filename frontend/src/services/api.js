@@ -107,4 +107,28 @@ export const automationAPI = {
   update: (id, data) => API.put(`/automation/${id}`, data),
 };
 
+export const emailCampaignsAPI = {
+  getAll: (params) => API.get('/email-campaigns', { params }),
+  getDashboardStats: () => API.get('/email-campaigns/dashboard-stats'),
+  create: (data) => {
+    // If it's FormData (for attachments), send directly, otherwise JSON
+    if (data instanceof FormData) {
+      return API.post('/email-campaigns', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    }
+    return API.post('/email-campaigns', data);
+  },
+  getById: (id) => API.get(`/email-campaigns/${id}`),
+  delete: (id) => API.delete(`/email-campaigns/${id}`),
+};
+
+export const emailTemplatesAPI = {
+  getAll: (params) => API.get('/email-templates', { params }),
+  getById: (id) => API.get(`/email-templates/${id}`),
+  create: (data) => API.post('/email-templates', data),
+  update: (id, data) => API.put(`/email-templates/${id}`, data),
+  delete: (id) => API.delete(`/email-templates/${id}`),
+};
+
 export default API;

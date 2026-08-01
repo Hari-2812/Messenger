@@ -150,6 +150,9 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+const emailCampaignRoutes = require('./routes/emailCampaignRoutes');
+const emailTemplateRoutes = require('./routes/emailTemplateRoutes');
+
 // ── API Routes ─────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/contacts', contactRoutes);
@@ -163,6 +166,10 @@ app.use('/api/wati', watiRoutes);
 app.use('/api/inbox', inboxRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/automation', automationRoutes);
+
+// Email Campaign Routes
+app.use('/api/email-campaigns', emailCampaignRoutes);
+app.use('/api/email-templates', emailTemplateRoutes);
 
 // ── 404 Handler ────────────────────────────────────────────────────────────────
 app.use((req, res) => {

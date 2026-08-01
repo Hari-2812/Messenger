@@ -321,12 +321,19 @@ const importContacts = async (req, res) => {
         .on('error', reject);
     });
 
+    // To prevent in-batch duplicates
+    const seenPhones = new Set();
+    const seenEmails = new Set();
+
     for (const row of results) {
       const name = (row.Name || row.name || '').trim();
       const rawPhone = (row.Phone || row.phone || '').trim();
       const email = (row.Email || row.email || '').trim();
       const tags = (row.Tags || row.tags || '').split(',').map((t) => t.trim()).filter(Boolean);
       const source = (row.Source || row.source || 'CSV').trim();
+      
+      const college = (row.College || row.college || '').trim();
+      const department = (row.Department || row.department || '').trim();
 
       if (!name || !rawPhone) {
         errors.push({ row, reason: 'Missing name or phone' });
@@ -339,13 +346,49 @@ const importContacts = async (req, res) => {
         continue;
       }
 
-      const existing = await Contact.findOne({ phone: phoneCheck.normalized });
-      if (existing) {
+      const normalizedPhone = phoneCheck.normalized;
+      
+      // In-batch duplicate checks
+      if (seenPhones.has(normalizedPhone)) {
         skipped += 1;
         continue;
       }
+      if (email && seenEmails.has(email)) {
+        skipped += 1;
+        continue;
+      }
+      
+      seenPhones.add(normalizedPhone);
+      if (email) seenEmails.add(email);
 
-      pendingContacts.push({ name, phone: phoneCheck.normalized, email, tags, source, syncStatus: 'pending' });
+      // DB duplicate checks
+      const existingPhone = await Contact.findOne({ phone: normalizedPhone });
+      if (existingPhone) {
+        skipped += 1;
+        continue;
+      }
+      
+      if (email) {
+        const existingEmail = await Contact.findOne({ email: email });
+        if (existingEmail) {
+          skipped += 1;
+          continue;
+        }
+      }
+
+      const customFields = {};
+      if (college) customFields.College = college;
+      if (department) customFields.Department = department;
+
+      pendingContacts.push({ 
+        name, 
+        phone: normalizedPhone, 
+        email, 
+        tags, 
+        source, 
+        customFields,
+        syncStatus: 'pending' 
+      });
     }
   } finally {
     try {

@@ -129,4 +129,9 @@ PORT=5000
 MONGODB_URI=mongodb://127.0.0.1:27017/whatsapp_campaign
 JWT_SECRET=your_jwt_secret_here
 JWT_EXPIRES_IN=7d
+
+# Brevo Email Campaign configuration
+BREVO_API_KEY=
+BREVO_SENDER_NAME=Techzon Wide
+BREVO_SENDER_EMAIL=support@techzonwide.com
 ```

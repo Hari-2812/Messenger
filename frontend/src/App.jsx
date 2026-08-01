@@ -15,6 +15,13 @@ import WatiSettings from './pages/WatiSettings';
 import WhatsAppInbox from './pages/WhatsAppInbox';
 import Analytics from './pages/Analytics';
 
+// Email Pages
+import EmailDashboard from './pages/email/EmailDashboard';
+import EmailCreateCampaign from './pages/email/EmailCreateCampaign';
+import EmailTemplates from './pages/email/EmailTemplates';
+import EmailHistory from './pages/email/EmailHistory';
+import EmailReports from './pages/email/EmailReports';
+
 function App() {
   return (
     <Routes>
@@ -26,6 +33,14 @@ function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/contacts" element={<Contacts />} />
+          
+          {/* Email Campaign Routes */}
+          <Route path="/email/dashboard" element={<EmailDashboard />} />
+          <Route path="/email/campaigns" element={<EmailCreateCampaign />} />
+          <Route path="/email/templates" element={<EmailTemplates />} />
+          <Route path="/email/history" element={<EmailHistory />} />
+          <Route path="/email/reports" element={<EmailReports />} />
+
           <Route path="/templates" element={<Templates />} />
           <Route path="/campaigns" element={<Campaigns />} />
           <Route path="/campaigns/create" element={<Campaigns />} />
