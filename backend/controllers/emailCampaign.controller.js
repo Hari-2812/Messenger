@@ -156,13 +156,18 @@ const createCampaign = async (req, res) => {
 
 // Helper function to enqueue emails in background
 const sendCampaignEmails = async (campaign, attachments) => {
+  console.log(`[Campaign] Starting enqueue process for campaign ${campaign._id}. Requested recipients: ${campaign.recipients.length}`);
   try {
     const contacts = await Contact.find({ _id: { $in: campaign.recipients } });
+    console.log(`[Campaign] Retrieved ${contacts.length} contacts from database.`);
     
     const logsToInsert = [];
 
     for (const contact of contacts) {
-      if (!contact.email) continue;
+      if (!contact.email) {
+        console.warn(`[Campaign] Contact ${contact._id} has no email address. Skipping.`);
+        continue;
+      }
       
       logsToInsert.push({
         campaignId: campaign._id,
@@ -175,7 +180,11 @@ const sendCampaignEmails = async (campaign, attachments) => {
     }
 
     if (logsToInsert.length > 0) {
+      console.log(`[Campaign] Inserting ${logsToInsert.length} logs to MongoDB...`);
       await EmailLog.insertMany(logsToInsert);
+      console.log(`[Campaign] Successfully inserted ${logsToInsert.length} pending emails into queue.`);
+    } else {
+      console.warn(`[Campaign] No valid emails found to enqueue for campaign ${campaign._id}`);
     }
 
     campaign.stats.totalContacts = logsToInsert.length;
@@ -183,9 +192,11 @@ const sendCampaignEmails = async (campaign, attachments) => {
     await campaign.save();
     
     // The actual sending will be handled by the background cron job (emailQueue.service.js)
-    console.log(`Enqueued ${logsToInsert.length} emails for campaign ${campaign._id}`);
+    console.log(`[Campaign] Finished enqueueing. Total queued emails for campaign ${campaign._id}: ${logsToInsert.length}`);
   } catch (error) {
-    console.error(`Error enqueueing campaign ${campaign._id}:`, error);
+    console.error(`[Campaign] Error enqueueing campaign ${campaign._id}:`, error.message);
+    if (error.response) console.error(error.response.data);
+    
     campaign.status = 'Failed';
     campaign.error = error.message;
     await campaign.save();

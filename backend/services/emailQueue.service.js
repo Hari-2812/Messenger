@@ -46,8 +46,11 @@ const processEmailQueue = async () => {
     // 3. Process each email
     for (const log of pendingEmails) {
       try {
+        console.log(`[Queue] Processing log ${log._id} for recipient ${log.recipientEmail}`);
+        
         const campaign = log.campaignId;
         if (!campaign) {
+          console.error(`[Queue] Campaign not found for log ${log._id}`);
           log.status = 'Failed';
           log.failedReason = 'Campaign not found';
           await log.save();
@@ -80,16 +83,19 @@ const processEmailQueue = async () => {
           }
         ] : [];
 
-        const result = await sendEmail(
-          log.recipientEmail,
-          log.recipientName,
-          campaign.subject,
-          content,
-          campaign.senderName,
-          campaign.senderEmail,
-          attachments
-        );
+        console.log(`[Queue] Calling Brevo sendEmail for ${log.recipientEmail}...`);
+        const result = await sendEmail({
+          to: log.recipientEmail,
+          subject: campaign.subject,
+          htmlContent: content,
+          attachment: attachments
+        });
 
+        if (!result.success) {
+          throw new Error(result.error || 'Unknown Brevo Error');
+        }
+
+        console.log(`[Queue] Successfully sent to ${log.recipientEmail}. MessageId: ${result.messageId}`);
         // Update Log
         log.status = 'Sent';
         log.messageId = result.messageId;
@@ -98,11 +104,17 @@ const processEmailQueue = async () => {
 
         // Update Campaign Stats incrementally
         await EmailCampaign.findByIdAndUpdate(campaign._id, {
-          $inc: { 'stats.totalSent': 1 }
+          $inc: { 'stats.delivered': 1 }
         });
 
       } catch (err) {
-        console.error(`Failed to send email to ${log.recipientEmail}:`, err.message);
+        console.error(`[Queue] Failed to send email to ${log.recipientEmail}:`);
+        console.error(`- Error message: ${err.message}`);
+        if (err.response) {
+          console.error(`- Status: ${err.response.status}`);
+          console.error(`- Data: ${JSON.stringify(err.response.data)}`);
+        }
+        
         log.status = 'Failed';
         log.failedReason = err.message;
         log.retryCount += 1;
@@ -113,6 +125,11 @@ const processEmailQueue = async () => {
         }
         
         await log.save();
+
+        // Update failed stats
+        await EmailCampaign.findByIdAndUpdate(log.campaignId?._id, {
+          $inc: { 'stats.failed': 1 }
+        });
       }
     }
 
