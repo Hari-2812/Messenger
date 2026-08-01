@@ -5,28 +5,33 @@ export default {
     extend: {
       colors: {
         primary: {
-          50: '#eef2ff',
-          100: '#e0e7ff',
-          200: '#c7d2fe',
-          300: '#a5b4fc',
-          400: '#818cf8',
-          500: '#6366f1',
-          600: '#4f46e5',
-          700: '#4338ca',
-          800: '#3730a3',
-          900: '#312e81',
-          950: '#1e1b4b',
+          DEFAULT: '#241252',
+          hover: '#31206B',
         },
-        whatsapp: {
-          50: '#efeae2',
-          100: '#d1f4e0',
-          500: '#25d366',
-          600: '#128c7e',
-          700: '#075e54',
+        secondary: {
+          DEFAULT: '#31206B',
         },
-        navy: {
-          800: '#0f172a',
-          900: '#020617',
+        accent: {
+          DEFAULT: '#F57C20',
+          hover: '#FF8F3D',
+        },
+        background: {
+          DEFAULT: '#F8FAFC',
+        },
+        card: {
+          DEFAULT: '#FFFFFF',
+        },
+        text: {
+          DEFAULT: '#111827',
+          muted: '#6B7280',
+        },
+        border: {
+          DEFAULT: '#E5E7EB',
+        },
+        status: {
+          success: '#16A34A',
+          danger: '#DC2626',
+          warning: '#D97706',
         }
       },
       fontFamily: {

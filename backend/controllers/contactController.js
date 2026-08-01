@@ -303,7 +303,7 @@ const retrySyncContact = async (req, res) => {
 // @route   POST /api/contacts/import
 const importContacts = async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ message: 'Please upload a CSV file' });
+    return res.status(400).json({ message: 'Please upload a file' });
   }
 
   const filePath = req.file.path;
@@ -313,13 +313,26 @@ const importContacts = async (req, res) => {
   let skipped = 0;
 
   try {
-    await new Promise((resolve, reject) => {
-      fs.createReadStream(filePath)
-        .pipe(csv())
-        .on('data', (row) => results.push(row))
-        .on('end', resolve)
-        .on('error', reject);
-    });
+    const fileExtension = req.file.originalname.split('.').pop().toLowerCase();
+    
+    if (fileExtension === 'csv') {
+      await new Promise((resolve, reject) => {
+        fs.createReadStream(filePath)
+          .pipe(csv())
+          .on('data', (row) => results.push(row))
+          .on('end', resolve)
+          .on('error', reject);
+      });
+    } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+      const xlsx = require('xlsx');
+      const workbook = xlsx.readFile(filePath);
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const data = xlsx.utils.sheet_to_json(sheet);
+      results.push(...data);
+    } else {
+      return res.status(400).json({ message: 'Unsupported file format. Please upload a CSV or Excel file.' });
+    }
 
     // To prevent in-batch duplicates
     const seenPhones = new Set();

@@ -25,6 +25,7 @@ const inboxRoutes = require('./routes/inboxRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const automationRoutes = require('./routes/automationRoutes');
 const { startDeliveryTimeoutJob } = require('./services/deliveryTimeoutJob');
+const { initCronJobs } = require('./services/emailQueue.service');
 
 const app = express();
 const server = http.createServer(app);
@@ -239,6 +240,7 @@ const startServer = async () => {
       console.log('----------------------------------------\n');
 
       startDeliveryTimeoutJob();
+      initCronJobs();
     });
   } catch (error) {
     console.error(`[Startup] Failed: ${error.message}`);

@@ -6,12 +6,13 @@
 
 /* ── Custom Properties ──────────────────────────────────────────────── */
 :root {
-  --gradient-primary: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-  --gradient-dark:    linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
-  --gradient-green:   linear-gradient(135deg, #25d366 0%, #128c7e 100%);
-  --shadow-glass:     0 8px 32px rgba(79, 70, 229, 0.12);
+  --gradient-primary: linear-gradient(135deg, #241252 0%, #31206B 100%);
+  --gradient-dark:    linear-gradient(135deg, #111827 0%, #1f2937 100%);
+  --gradient-green:   linear-gradient(135deg, #16A34A 0%, #15803d 100%);
+  --gradient-orange:  linear-gradient(135deg, #F57C20 0%, #FF8F3D 100%);
+  --shadow-glass:     0 8px 32px rgba(36, 18, 82, 0.12);
   --shadow-card:      0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
-  --shadow-elevated:  0 4px 24px rgba(79, 70, 229, 0.18);
+  --shadow-elevated:  0 4px 24px rgba(36, 18, 82, 0.18);
   --radius-card:      16px;
   --sidebar-width:    260px;
 }
@@ -23,8 +24,8 @@ html { font-size: 15px; scroll-behavior: smooth; }
 
 body {
   font-family: 'Inter', system-ui, sans-serif;
-  background: #f8f7ff;
-  color: #1e1b4b;
+  background: #F8FAFC;
+  color: #111827;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.6;
@@ -74,9 +75,9 @@ body {
   .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-primary-700 bg-primary-50 border border-primary-200 transition-all duration-200;
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-primary bg-primary/10 border border-primary/20 transition-all duration-200;
   }
-  .btn-secondary:hover { @apply bg-primary-100 border-primary-300; transform: translateY(-1px); }
+  .btn-secondary:hover { @apply bg-primary/20 border-primary/30; transform: translateY(-1px); }
   .btn-secondary:disabled { opacity: 0.6; cursor: not-allowed; }
 
   .btn-ghost {
@@ -107,8 +108,8 @@ body {
     outline: none;
   }
   .input-field:focus {
-    @apply border-primary-400;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+    @apply border-primary;
+    box-shadow: 0 0 0 3px rgba(36, 18, 82, 0.12);
   }
   .input-field:disabled { @apply bg-gray-50 cursor-not-allowed; }
 
@@ -132,7 +133,7 @@ body {
 
   /* Badges / Pills */
   .badge { @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold; }
-  .badge-primary    { @apply bg-primary-100 text-primary-700; }
+  .badge-primary    { @apply bg-primary/10 text-primary; }
   .badge-success    { @apply bg-emerald-100 text-emerald-700; }
   .badge-warning    { @apply bg-amber-100 text-amber-700; }
   .badge-danger     { @apply bg-red-100 text-red-700; }
@@ -153,14 +154,14 @@ body {
   .table thead { @apply bg-gray-50/80; }
   .table th { @apply text-left py-3 px-4 font-semibold text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap; }
   .table td { @apply py-3.5 px-4 text-gray-700 border-t border-gray-50; }
-  .table tbody tr { @apply hover:bg-primary-50/40 transition-colors duration-100; }
+  .table tbody tr { @apply hover:bg-background/50 transition-colors duration-100; }
 
   /* Sidebar styles */
   .sidebar-link {
     @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 transition-all duration-150;
   }
-  .sidebar-link:hover { @apply bg-primary-50 text-primary-700; }
-  .sidebar-link.active { @apply bg-primary-600 text-white shadow-sm; }
+  .sidebar-link:hover { @apply bg-primary/10 text-primary; }
+  .sidebar-link.active { @apply bg-primary text-white shadow-sm; }
   .sidebar-link.active .sidebar-icon { @apply bg-white/20 text-white; }
 
   .sidebar-icon {
@@ -180,7 +181,7 @@ body {
 
   /* Loading Spinner */
   .spinner {
-    @apply animate-spin rounded-full border-2 border-gray-200 border-t-primary-600;
+    @apply animate-spin rounded-full border-2 border-border border-t-primary;
   }
 
   /* Divider */

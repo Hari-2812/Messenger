@@ -1,23 +1,24 @@
 import { useEffect, useState, useCallback } from 'react';
 import { logsAPI } from '../services/api';
 import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 
 /* ── Mini Donut Chart ──────────────────────────────────────────────── */
-const DonutRing = ({ value = 0, max = 100, color = '#4f46e5', size = 64, stroke = 7 }) => {
+const DonutRing = ({ value = 0, max = 100, color = '#241252', size = 64, stroke = 7 }) => {
   const pct  = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   const r    = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;
   const off  = circ - (pct / 100) * circ;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="flex-shrink-0">
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#e0e7ff" strokeWidth={stroke}/>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#e5e7eb" strokeWidth={stroke}/>
       <circle
         cx={size/2} cy={size/2} r={r} fill="none"
         stroke={color} strokeWidth={stroke}
         strokeDasharray={circ} strokeDashoffset={off}
         strokeLinecap="round"
         transform={`rotate(-90 ${size/2} ${size/2})`}
-        style={{ transition: 'stroke-dashoffset 0.8s ease' }}
+        style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)' }}
       />
       <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle"
         fontSize="13" fontWeight="700" fill={color}>
@@ -28,57 +29,70 @@ const DonutRing = ({ value = 0, max = 100, color = '#4f46e5', size = 64, stroke 
 };
 
 /* ── KPI Stat Card ─────────────────────────────────────────────────── */
-const KpiCard = ({ title, value, sub, icon, gradient, trend }) => (
-  <div
-    className="rounded-2xl p-5 text-white relative overflow-hidden"
-    style={{ background: gradient, boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}
+const KpiCard = ({ title, value, sub, icon, gradient, trend, delay = 0 }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.5, delay }}
+    whileHover={{ y: -4, scale: 1.01 }}
+    className="rounded-2xl p-6 text-white relative overflow-hidden shadow-elevated"
+    style={{ background: gradient }}
   >
-    <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-white/10 translate-x-8 -translate-y-8" />
-    <div className="absolute bottom-0 right-8 w-16 h-16 rounded-full bg-white/5 translate-y-6" />
+    <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-white/10 translate-x-12 -translate-y-12 backdrop-blur-3xl" />
+    <div className="absolute bottom-0 right-8 w-20 h-20 rounded-full bg-white/5 translate-y-8 backdrop-blur-2xl" />
     <div className="relative z-10">
-      <div className="flex items-start justify-between mb-3">
-        <span className="text-3xl">{icon}</span>
+      <div className="flex items-start justify-between mb-4">
+        <span className="text-4xl filter drop-shadow-md">{icon}</span>
         {trend !== undefined && (
-          <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full font-medium">
+          <span className="text-xs bg-white/20 px-2.5 py-1 rounded-full font-semibold shadow-sm backdrop-blur-md">
             {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}%
           </span>
         )}
       </div>
-      <p className="text-white/70 text-xs font-medium uppercase tracking-wide mb-1">{title}</p>
-      <p className="text-3xl font-extrabold leading-none">{value ?? '—'}</p>
-      {sub && <p className="text-white/60 text-xs mt-1.5">{sub}</p>}
+      <p className="text-white/80 text-xs font-bold uppercase tracking-wider mb-1.5">{title}</p>
+      <p className="text-4xl font-extrabold leading-none tracking-tight">{value ?? '—'}</p>
+      {sub && <p className="text-white/70 text-xs mt-2 font-medium">{sub}</p>}
     </div>
-  </div>
+  </motion.div>
 );
 
 /* ── Mini Stat Bar Card ─────────────────────────────────────────────── */
 const MiniStat = ({ label, value, total, color, emoji }) => {
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   return (
-    <div className="card-sm">
+    <motion.div 
+      whileHover={{ scale: 1.02 }}
+      className="card-sm bg-white border border-border"
+    >
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs text-gray-500 font-medium">{emoji} {label}</span>
-        <span className="text-sm font-bold text-gray-900">{value?.toLocaleString()}</span>
+        <span className="text-xs text-text-muted font-bold">{emoji} {label}</span>
+        <span className="text-sm font-extrabold text-text">{value?.toLocaleString()}</span>
       </div>
-      <div className="progress-bar">
-        <div className="progress-fill" style={{ width: `${pct}%`, background: color }} />
+      <div className="progress-bar bg-border">
+        <motion.div 
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 1, delay: 0.2 }}
+          className="h-full rounded-full" 
+          style={{ background: color }} 
+        />
       </div>
-      <p className="text-xs text-gray-400 mt-1">{pct}% of total</p>
-    </div>
+      <p className="text-xs text-text-muted mt-1.5 font-medium">{pct}% of total</p>
+    </motion.div>
   );
 };
 
 /* ── Status Badge ───────────────────────────────────────────────────── */
 const StatusBadge = ({ status }) => {
   const map = {
-    draft:     'badge bg-gray-100 text-gray-600',
-    sending:   'badge bg-amber-100 text-amber-700',
-    completed: 'badge bg-emerald-100 text-emerald-700',
-    partial:   'badge bg-orange-100 text-orange-700',
-    failed:    'badge bg-red-100 text-red-700',
+    draft:     'badge bg-border text-text-muted',
+    sending:   'badge bg-status-warning/10 text-status-warning',
+    completed: 'badge bg-status-success/10 text-status-success',
+    partial:   'badge bg-accent/10 text-accent',
+    failed:    'badge bg-status-danger/10 text-status-danger',
   };
   return (
-    <span className={map[status] || 'badge badge-gray'}>
+    <span className={`${map[status] || 'badge bg-border text-text-muted'} capitalize`}>
       {status === 'completed' && '✓ '}
       {status === 'sending' && '⟳ '}
       {status === 'failed' && '✗ '}
@@ -124,33 +138,33 @@ const Dashboard = () => {
   if (loading) {
     return (
       <div className="space-y-6 animate-pulse">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-32 skeleton rounded-2xl" />
+            <div key={i} className="h-40 skeleton rounded-2xl" />
           ))}
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           {[...Array(4)].map((_, i) => (
-            <Skel key={i} className="h-20 rounded-xl" />
+            <Skel key={i} className="h-24 rounded-xl" />
           ))}
         </div>
-        <Skel className="h-72 rounded-2xl" />
+        <Skel className="h-80 rounded-2xl" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="alert-error">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="alert-error">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5 flex-shrink-0">
           <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
         <div>
-          <p className="font-semibold">Failed to load dashboard</p>
-          <p className="text-xs mt-0.5 opacity-80">{error}</p>
-          <button onClick={() => fetchStats()} className="text-xs underline mt-1.5">Try again</button>
+          <p className="font-bold">Failed to load dashboard</p>
+          <p className="text-sm mt-0.5 opacity-90">{error}</p>
+          <button onClick={() => fetchStats()} className="text-sm underline mt-2 font-semibold">Try again</button>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
@@ -161,29 +175,42 @@ const Dashboard = () => {
   const failedRate      = totalSent > 0 ? Math.round(((stats.totalMessagesFailed || 0) / totalSent) * 100) : 0;
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {stats.hasBillingError && (
-        <div className="alert-error flex items-start gap-3 p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg">
-          <span className="text-xl">⚠️</span>
-          <div>
-            <h4 className="font-bold">WATI credits exhausted</h4>
-            <p className="text-sm mt-1">Recharge your WATI account to continue sending campaigns.</p>
-          </div>
-        </div>
-      )}
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="space-y-8"
+    >
+      <AnimatePresence>
+        {stats.hasBillingError && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="alert-error flex items-start gap-4 p-5 bg-status-danger/10 border border-status-danger/20 text-status-danger rounded-xl shadow-sm"
+          >
+            <span className="text-2xl drop-shadow-sm">⚠️</span>
+            <div>
+              <h4 className="font-extrabold text-base">WATI credits exhausted</h4>
+              <p className="text-sm mt-1 font-medium text-status-danger/80">Recharge your WATI account to continue sending campaigns.</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Page Header ── */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="page-title">Dashboard</h1>
-          <p className="page-subtitle">Overview of your WhatsApp CRM campaigns</p>
+          <h1 className="page-title text-3xl tracking-tight">Dashboard</h1>
+          <p className="page-subtitle text-base font-medium">Overview of your Omnichannel CRM</p>
         </div>
-        <div className="flex gap-2">
-          <button
-            id="refresh-dashboard-btn"
+        <div className="flex gap-3">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             onClick={() => fetchStats(true)}
             disabled={refreshing}
-            className="btn-ghost text-sm"
+            className="btn-ghost bg-white shadow-sm font-semibold"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
               className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`}>
@@ -191,44 +218,50 @@ const Dashboard = () => {
               <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
             </svg>
             {refreshing ? 'Refreshing…' : 'Refresh'}
-          </button>
-          <Link to="/campaigns" className="btn-primary text-sm">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            New Campaign
-          </Link>
+          </motion.button>
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Link to="/campaigns" className="btn-primary bg-gradient-to-r from-primary to-secondary shadow-lg">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              New Campaign
+            </Link>
+          </motion.div>
         </div>
       </div>
 
       {/* ── KPI Cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <KpiCard
+          delay={0.1}
           title="Total Contacts"
           value={stats.totalContacts?.toLocaleString()}
           icon="👥"
-          gradient="linear-gradient(135deg, #4f46e5, #7c3aed)"
+          gradient="linear-gradient(135deg, #241252 0%, #31206B 100%)"
           sub="In your CRM"
         />
         <KpiCard
+          delay={0.2}
           title="Total Campaigns"
           value={stats.totalCampaigns?.toLocaleString()}
           icon="📢"
-          gradient="linear-gradient(135deg, #0ea5e9, #6366f1)"
+          gradient="linear-gradient(135deg, #F57C20 0%, #FF8F3D 100%)"
           sub="All time"
         />
         <KpiCard
+          delay={0.3}
           title="Messages Sent"
           value={totalSent?.toLocaleString()}
           icon="📤"
-          gradient="linear-gradient(135deg, #25d366, #128c7e)"
+          gradient="linear-gradient(135deg, #16A34A 0%, #15803d 100%)"
           sub={`${deliveryRate}% delivery rate`}
         />
         <KpiCard
+          delay={0.4}
           title="Messages Read"
           value={stats.totalMessagesRead?.toLocaleString()}
           icon="👁️"
-          gradient="linear-gradient(135deg, #f59e0b, #ef4444)"
+          gradient="linear-gradient(135deg, #0284c7 0%, #0369a1 100%)"
           sub={`${readRate}% open rate`}
         />
       </div>
@@ -237,128 +270,160 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* Delivery Overview */}
-        <div className="card lg:col-span-2">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="card lg:col-span-2 border-border shadow-card"
+        >
           <div className="section-header">
-            <h3 className="section-title">Delivery Overview</h3>
-            <span className="badge badge-primary">All Campaigns</span>
+            <h3 className="section-title tracking-tight">Delivery Overview</h3>
+            <span className="badge bg-primary/10 text-primary font-bold px-3 py-1">All Campaigns</span>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <MiniStat label="Sent"      value={stats.totalMessagesSent || 0}      total={totalSent} color="#6366f1" emoji="📤" />
-            <MiniStat label="Delivered" value={stats.totalMessagesDelivered || 0} total={totalSent} color="#25d366" emoji="✅" />
-            <MiniStat label="Read"      value={stats.totalMessagesRead || 0}      total={totalSent} color="#f59e0b" emoji="👁️" />
-            <MiniStat label="Failed"    value={stats.totalMessagesFailed || 0}    total={totalSent} color="#ef4444" emoji="❌" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <MiniStat label="Sent"      value={stats.totalMessagesSent || 0}      total={totalSent} color="#31206B" emoji="📤" />
+            <MiniStat label="Delivered" value={stats.totalMessagesDelivered || 0} total={totalSent} color="#16A34A" emoji="✅" />
+            <MiniStat label="Read"      value={stats.totalMessagesRead || 0}      total={totalSent} color="#0284c7" emoji="👁️" />
+            <MiniStat label="Failed"    value={stats.totalMessagesFailed || 0}    total={totalSent} color="#DC2626" emoji="❌" />
           </div>
-        </div>
+        </motion.div>
 
         {/* Delivery Rate Donut */}
-        <div className="card flex flex-col items-center justify-center text-center">
-          <h3 className="section-title mb-4">Delivery Rate</h3>
-          <DonutRing value={deliveryRate} max={100} color="#4f46e5" size={100} stroke={10} />
-          <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-gray-500">
-            <span>🟢 Delivered: {deliveryRate}%</span>
-            <span>👁 Read: {readRate}%</span>
-            <span>🔴 Failed: {failedRate}%</span>
-            <span>⏳ Pending: {Math.max(0, 100 - deliveryRate - failedRate)}%</span>
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="card flex flex-col items-center justify-center text-center border-border shadow-card"
+        >
+          <h3 className="section-title mb-6 tracking-tight">Delivery Rate</h3>
+          <DonutRing value={deliveryRate} max={100} color="#241252" size={140} stroke={12} />
+          <div className="mt-6 grid grid-cols-2 gap-x-8 gap-y-2 text-xs font-bold text-text-muted">
+            <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-status-success"/> Delivered: {deliveryRate}%</span>
+            <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#0284c7]"/> Read: {readRate}%</span>
+            <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-status-danger"/> Failed: {failedRate}%</span>
+            <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-accent"/> Pending: {Math.max(0, 100 - deliveryRate - failedRate)}%</span>
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* ── Recent Campaigns Table ── */}
-      <div className="card p-0 overflow-hidden">
-        <div className="section-header px-6 pt-5 pb-4 border-b border-gray-50">
-          <h3 className="section-title">Recent Campaigns</h3>
-          <Link to="/campaigns" className="text-primary-600 hover:text-primary-700 text-sm font-semibold flex items-center gap-1">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.7 }}
+        className="card p-0 overflow-hidden border-border shadow-card"
+      >
+        <div className="section-header px-6 pt-6 pb-4 border-b border-border bg-background/50">
+          <h3 className="section-title tracking-tight">Recent Campaigns</h3>
+          <Link to="/campaigns" className="text-primary hover:text-primary-hover text-sm font-bold flex items-center gap-1 transition-colors">
             View all
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
               <polyline points="9 18 15 12 9 6"/>
             </svg>
           </Link>
         </div>
 
         {!stats.recentCampaigns?.length ? (
-          <div className="empty-state py-12">
-            <p className="empty-state-icon">📭</p>
-            <p className="font-semibold text-gray-700 mb-1">No campaigns yet</p>
-            <p className="empty-state-text">Create your first campaign to start sending WhatsApp messages.</p>
-            <Link to="/campaigns" className="btn-primary mt-4 text-sm">
+          <div className="empty-state py-16 bg-white">
+            <p className="empty-state-icon text-6xl">📭</p>
+            <p className="font-extrabold text-text text-lg mb-2">No campaigns yet</p>
+            <p className="empty-state-text text-text-muted text-base">Create your first campaign to start sending WhatsApp messages.</p>
+            <Link to="/campaigns" className="btn-primary mt-6 text-sm bg-gradient-to-r from-primary to-secondary shadow-lg">
               Create Campaign
             </Link>
           </div>
         ) : (
-          <div className="table-wrapper rounded-none border-0">
+          <div className="table-wrapper rounded-none border-0 bg-white">
             <table className="table">
-              <thead>
+              <thead className="bg-background/80">
                 <tr>
-                  <th>Campaign</th>
-                  <th>Template</th>
-                  <th>Total</th>
-                  <th>Sent</th>
-                  <th>Delivered</th>
-                  <th>Failed</th>
-                  <th>Status</th>
-                  <th>Progress</th>
+                  <th className="font-bold text-text-muted">Campaign</th>
+                  <th className="font-bold text-text-muted">Template</th>
+                  <th className="font-bold text-text-muted">Total</th>
+                  <th className="font-bold text-text-muted">Sent</th>
+                  <th className="font-bold text-text-muted">Delivered</th>
+                  <th className="font-bold text-text-muted">Failed</th>
+                  <th className="font-bold text-text-muted">Status</th>
+                  <th className="font-bold text-text-muted">Progress</th>
                 </tr>
               </thead>
               <tbody>
-                {stats.recentCampaigns.map((c) => {
+                {stats.recentCampaigns.map((c, i) => {
                   const pct = c.totalContacts > 0
                     ? Math.round(((c.sentCount + c.failedCount) / c.totalContacts) * 100)
                     : 0;
                   return (
-                    <tr key={c._id}>
-                      <td className="font-semibold text-gray-900 max-w-[160px] truncate">{c.campaignName}</td>
+                    <motion.tr 
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.8 + (i * 0.05) }}
+                      key={c._id}
+                      className="border-b border-border hover:bg-background/50 transition-colors"
+                    >
+                      <td className="font-bold text-text max-w-[160px] truncate">{c.campaignName}</td>
                       <td>
                         {c.metaTemplateName ? (
-                          <span className="chip font-mono">{c.metaTemplateName}</span>
+                          <span className="chip font-mono bg-border text-text font-bold">{c.metaTemplateName}</span>
                         ) : (
-                          <span className="text-gray-400">—</span>
+                          <span className="text-text-muted">—</span>
                         )}
                       </td>
-                      <td className="font-medium">{c.totalContacts}</td>
-                      <td className="text-primary-600 font-semibold">{c.sentCount}</td>
-                      <td className="text-emerald-600 font-semibold">{c.deliveredCount || 0}</td>
-                      <td className="text-red-500 font-semibold">{c.failedCount}</td>
+                      <td className="font-bold text-text-muted">{c.totalContacts}</td>
+                      <td className="text-primary font-bold">{c.sentCount}</td>
+                      <td className="text-status-success font-bold">{c.deliveredCount || 0}</td>
+                      <td className="text-status-danger font-bold">{c.failedCount}</td>
                       <td><StatusBadge status={c.status} /></td>
-                      <td className="min-w-[80px]">
-                        <div className="progress-bar">
-                          <div className="progress-fill" style={{ width: `${pct}%` }} />
+                      <td className="min-w-[100px]">
+                        <div className="progress-bar bg-border h-2">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${pct}%` }}
+                            transition={{ duration: 1 }}
+                            className="h-full rounded-full bg-gradient-to-r from-primary to-secondary" 
+                          />
                         </div>
-                        <p className="text-xs text-gray-400 mt-0.5">{pct}%</p>
+                        <p className="text-xs text-text-muted mt-1.5 font-bold">{pct}%</p>
                       </td>
-                    </tr>
+                    </motion.tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
         )}
-      </div>
+      </motion.div>
 
       {/* ── Quick Links ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.9 }}
+        className="grid grid-cols-2 sm:grid-cols-4 gap-4"
+      >
         {[
-          { to: '/contacts',        icon: '👥', label: 'Manage Contacts',  color: '#4f46e5' },
-          { to: '/templates',       icon: '📄', label: 'View Templates',   color: '#7c3aed' },
-          { to: '/whatsapp-inbox',  icon: '💬', label: 'Open Inbox',       color: '#25d366' },
-          { to: '/wati/settings',   icon: '⚙️', label: 'WATI Settings',   color: '#0ea5e9' },
-        ].map((item) => (
-          <Link
-            key={item.to}
-            to={item.to}
-            className="card-sm flex items-center gap-3 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5"
-          >
-            <div
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-lg flex-shrink-0"
-              style={{ background: `${item.color}15` }}
+          { to: '/contacts',        icon: '👥', label: 'Manage Contacts',  color: '#241252' },
+          { to: '/templates',       icon: '📄', label: 'View Templates',   color: '#31206B' },
+          { to: '/whatsapp-inbox',  icon: '💬', label: 'Open Inbox',       color: '#16A34A' },
+          { to: '/wati/settings',   icon: '⚙️', label: 'Settings',          color: '#F57C20' },
+        ].map((item, i) => (
+          <motion.div key={item.to} whileHover={{ y: -4, scale: 1.02 }} transition={{ duration: 0.2 }}>
+            <Link
+              to={item.to}
+              className="card-sm flex items-center gap-4 bg-white border border-border shadow-sm hover:shadow-md transition-shadow"
             >
-              {item.icon}
-            </div>
-            <span className="text-sm font-semibold text-gray-700">{item.label}</span>
-          </Link>
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+                style={{ background: `${item.color}15`, color: item.color }}
+              >
+                {item.icon}
+              </div>
+              <span className="text-sm font-bold text-text">{item.label}</span>
+            </Link>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
 
-    </div>
+    </motion.div>
   );
 };
 

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { contactsAPI } from '../services/api';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Contacts = () => {
   const [contacts, setContacts] = useState([]);
@@ -264,7 +265,12 @@ const Contacts = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="space-y-6"
+    >
       {/* Top Banner Message */}
       {error && (
         <div className="alert alert-error animate-fade-in">
@@ -280,50 +286,60 @@ const Contacts = () => {
       {/* Header Info */}
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Contacts Catalog</h2>
-          <p className="text-sm text-slate-500 mt-1">
+          <h2 className="text-3xl font-bold tracking-tight text-text">Contacts Catalog</h2>
+          <p className="text-base text-text-muted mt-1 font-medium">
             Synchronize, group, and manage custom contact information with your WATI WhatsApp CRM.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             onClick={handleSyncAll}
             disabled={syncingAll}
-            className="inline-flex items-center gap-2 rounded-xl bg-indigo-50 border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 transition disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-xl bg-primary/10 border border-primary/20 px-4 py-2.5 text-sm font-bold text-primary hover:bg-primary/20 transition disabled:opacity-50"
           >
             {syncingAll ? 'Syncing...' : '🔄 Sync All'}
-          </button>
+          </motion.button>
         </div>
       </div>
 
       {/* Actions & Filters */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-card rounded-2xl border border-border p-4 shadow-card">
         <div className="flex flex-wrap gap-2">
-          <button
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             id="add-contact-btn"
             onClick={() => { resetForm(); setShowForm(true); }}
-            className="btn-primary"
+            className="btn-primary bg-gradient-to-r from-primary to-secondary shadow-lg"
           >
             + Add New Contact
-          </button>
-          <label className="btn-secondary cursor-pointer">
-            {importing ? 'Importing CSV...' : '📁 Import CSV'}
+          </motion.button>
+          <motion.label 
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="btn-secondary cursor-pointer border-border font-bold text-text-muted hover:text-text hover:bg-background"
+          >
+            {importing ? 'Importing CSV/Excel...' : '📁 Import CSV/Excel'}
             <input
               type="file"
-              accept=".csv"
+              accept=".csv,.xlsx,.xls"
               onChange={handleImport}
               className="hidden"
               disabled={importing}
             />
-          </label>
+          </motion.label>
           {selectedIds.size > 0 && (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               onClick={handleBulkDelete}
               disabled={isBulkDeleting}
-              className="btn-secondary text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 transition disabled:opacity-50"
+              className="btn-secondary text-status-danger border-status-danger/20 hover:bg-status-danger/10 hover:border-status-danger/30 transition disabled:opacity-50 font-bold"
             >
               🗑 {isBulkDeleting ? 'Deleting...' : `Delete Selected (${selectedIds.size})`}
-            </button>
+            </motion.button>
           )}
         </div>
         <div className="flex items-center gap-3">
@@ -334,200 +350,212 @@ const Contacts = () => {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search contacts..."
-              className="input-field w-64 pr-10"
+              className="input-field w-64 pr-10 border-border"
             />
-            <span className="absolute inset-y-0 right-3 flex items-center text-slate-400">
+            <span className="absolute inset-y-0 right-3 flex items-center text-text-muted">
               🔍
             </span>
           </div>
-          <span className="text-sm text-slate-500 whitespace-nowrap bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl">
+          <span className="text-sm text-text-muted whitespace-nowrap bg-background border border-border px-3 py-1.5 rounded-xl font-bold">
             Total: <strong>{total}</strong>
           </span>
         </div>
       </div>
 
       {/* Add / Edit Form Drawer/Panel */}
-      {showForm && (
-        <div className="card border-indigo-100 bg-indigo-50/20 p-6 animate-fade-in">
-          <h3 className="text-lg font-bold text-slate-900 mb-4">{editingId ? 'Edit Contact Profile' : 'Create New Contact Profile'}</h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="form-group">
-                <label className="label">Full Name</label>
-                <input
-                  id="contact-name"
-                  placeholder="Enter name"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="input-field"
-                  required
-                />
+      <AnimatePresence>
+        {showForm && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0, marginTop: 0 }}
+            animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+            exit={{ opacity: 0, height: 0, marginTop: 0 }}
+            className="card border-primary/20 bg-primary/5 p-6 overflow-hidden"
+          >
+            <h3 className="text-xl font-bold text-text mb-4">{editingId ? 'Edit Contact Profile' : 'Create New Contact Profile'}</h3>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="form-group">
+                  <label className="label">Full Name</label>
+                  <input
+                    id="contact-name"
+                    placeholder="Enter name"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    className="input-field border-border"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="label">Phone Number (with Country Code)</label>
+                  <input
+                    id="contact-phone"
+                    placeholder="e.g. 919876543210"
+                    value={form.phone}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    className="input-field border-border"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="label">Email Address (Optional)</label>
+                  <input
+                    id="contact-email"
+                    placeholder="e.g. name@domain.com"
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    className="input-field border-border"
+                  />
+                </div>
               </div>
-              <div className="form-group">
-                <label className="label">Phone Number (with Country Code)</label>
-                <input
-                  id="contact-phone"
-                  placeholder="e.g. 919876543210"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  className="input-field"
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label className="label">Email Address (Optional)</label>
-                <input
-                  id="contact-email"
-                  placeholder="e.g. name@domain.com"
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="input-field"
-                />
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="form-group">
-                <label className="label">Tags (comma separated)</label>
-                <input
-                  placeholder="e.g. Lead, VIP, Student"
-                  value={form.tags}
-                  onChange={(e) => setForm({ ...form, tags: e.target.value })}
-                  className="input-field"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="form-group">
+                  <label className="label">Tags (comma separated)</label>
+                  <input
+                    placeholder="e.g. Lead, VIP, Student"
+                    value={form.tags}
+                    onChange={(e) => setForm({ ...form, tags: e.target.value })}
+                    className="input-field border-border"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="label">Custom JSON Fields (Optional)</label>
+                  <textarea
+                    placeholder='e.g. { "school": "Hogwarts", "year": "2026" }'
+                    value={form.customFields}
+                    onChange={(e) => setForm({ ...form, customFields: e.target.value })}
+                    className="input-field h-16 font-mono text-xs border-border"
+                  />
+                </div>
               </div>
-              <div className="form-group">
-                <label className="label">Custom JSON Fields (Optional)</label>
-                <textarea
-                  placeholder='e.g. { "school": "Hogwarts", "year": "2026" }'
-                  value={form.customFields}
-                  onChange={(e) => setForm({ ...form, customFields: e.target.value })}
-                  className="input-field h-16 font-mono text-xs"
-                />
-              </div>
-            </div>
 
-            <div className="flex gap-2 justify-end">
-              <button id="contact-save-btn" type="submit" className="btn-primary">
-                {editingId ? 'Save Updates' : 'Create Contact'}
-              </button>
-              <button type="button" onClick={resetForm} className="btn-ghost">
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+              <div className="flex gap-3 justify-end pt-2">
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="button" onClick={resetForm} className="btn-ghost border-border font-bold text-text-muted hover:text-text hover:bg-background">
+                  Cancel
+                </motion.button>
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} id="contact-save-btn" type="submit" className="btn-primary bg-gradient-to-r from-primary to-secondary shadow-md">
+                  {editingId ? 'Save Updates' : 'Create Contact'}
+                </motion.button>
+              </div>
+            </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Content Grid: Table or Card display */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-white border border-slate-100 rounded-2xl shadow-sm">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mb-3"></div>
-          <p className="text-sm text-slate-500 font-medium">Loading your contact catalog...</p>
+        <div className="flex flex-col items-center justify-center py-24 bg-card border border-border rounded-2xl shadow-sm">
+          <div className="spinner w-10 h-10 mb-4 border-primary border-t-accent" />
+          <p className="text-base text-text-muted font-bold">Loading your contact catalog...</p>
         </div>
       ) : contacts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-white border border-slate-100 rounded-2xl shadow-sm text-center">
-          <div className="text-4xl mb-3">👥</div>
-          <h4 className="text-base font-semibold text-slate-800">No Contacts Found</h4>
-          <p className="text-sm text-slate-500 max-w-xs mt-1">
-            {search ? 'Adjust your search parameters and try again.' : 'Populate your database by creating a contact or importing a CSV file.'}
+        <div className="flex flex-col items-center justify-center py-24 bg-card border border-border rounded-2xl shadow-sm text-center">
+          <div className="text-6xl mb-4 opacity-80">👥</div>
+          <h4 className="text-xl font-bold text-text">No Contacts Found</h4>
+          <p className="text-base text-text-muted max-w-sm mt-2 font-medium">
+            {search ? 'Adjust your search parameters and try again.' : 'Populate your database by creating a contact or importing a CSV/Excel file.'}
           </p>
         </div>
       ) : (
         <>
           {/* Desktop Table View */}
-          <div className="hidden md:block bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="hidden md:block bg-card rounded-2xl border border-border shadow-card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50/75 border-b border-slate-100">
+                <thead className="bg-background/80 border-b border-border">
                   <tr>
-                    <th className="py-3.5 pl-4 pr-2 text-left">
+                    <th className="py-4 pl-5 pr-2 text-left">
                       <input 
                         type="checkbox" 
-                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        className="rounded border-border text-primary focus:ring-primary cursor-pointer w-4 h-4"
                         checked={contacts.length > 0 && selectedIds.size === contacts.length}
                         onChange={handleSelectAll}
                       />
                     </th>
-                    <th className="text-left py-3.5 px-4 font-semibold text-slate-500">Contact Details</th>
-                    <th className="text-left py-3.5 px-4 font-semibold text-slate-500">Phone</th>
-                    <th className="text-left py-3.5 px-4 font-semibold text-slate-500">Sync Details</th>
-                    <th className="text-left py-3.5 px-4 font-semibold text-slate-500">Tags & Custom Data</th>
-                    <th className="text-right py-3.5 px-4 font-semibold text-slate-500">Actions</th>
+                    <th className="text-left py-4 px-4 font-bold text-text-muted">Contact Details</th>
+                    <th className="text-left py-4 px-4 font-bold text-text-muted">Phone</th>
+                    <th className="text-left py-4 px-4 font-bold text-text-muted">Sync Details</th>
+                    <th className="text-left py-4 px-4 font-bold text-text-muted">Tags & Custom Data</th>
+                    <th className="text-right py-4 px-5 font-bold text-text-muted">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-border">
                   {contacts.map((contact) => (
-                    <tr key={contact._id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-4 pl-4 pr-2">
+                    <motion.tr 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      key={contact._id} 
+                      className="hover:bg-background/50 transition-colors"
+                    >
+                      <td className="py-4 pl-5 pr-2">
                         <input 
                           type="checkbox"
-                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                          className="rounded border-border text-primary focus:ring-primary cursor-pointer w-4 h-4"
                           checked={selectedIds.has(contact._id)}
                           onChange={() => handleSelectOne(contact._id)}
                         />
                       </td>
                       <td className="py-4 px-4">
-                        <div className="font-semibold text-slate-900">{contact.name}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">{contact.email || 'No Email'}</div>
+                        <div className="font-bold text-text">{contact.name}</div>
+                        <div className="text-xs text-text-muted mt-1 font-medium">{contact.email || 'No Email'}</div>
                       </td>
-                      <td className="py-4 px-4 font-mono text-xs text-slate-600">{contact.phone}</td>
+                      <td className="py-4 px-4 font-mono text-sm font-medium text-text-muted">{contact.phone}</td>
                       <td className="py-4 px-4">
                         <div className="flex flex-col gap-1 items-start">
                           {getSyncStatusBadge(contact.syncStatus)}
                           {contact.lastSyncedAt && (
-                            <span className="text-[10px] text-slate-400 font-medium">
+                            <span className="text-[11px] text-text-muted font-bold">
                               Synced: {new Date(contact.lastSyncedAt).toLocaleString()}
                             </span>
                           )}
                           {contact.syncError && contact.syncStatus === 'failed' && (
-                            <span className="text-[10px] text-red-500 font-medium max-w-[180px] truncate" title={contact.syncError}>
+                            <span className="text-[11px] text-status-danger font-bold max-w-[180px] truncate" title={contact.syncError}>
                               {contact.syncError}
                             </span>
                           )}
                         </div>
                       </td>
                       <td className="py-4 px-4">
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-1.5">
                           {contact.tags && contact.tags.map((tag, i) => (
-                            <span key={i} className="inline-flex items-center rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 ring-1 ring-inset ring-indigo-700/10">
+                            <span key={i} className="inline-flex items-center rounded-md bg-primary/5 px-2 py-1 text-[11px] font-bold text-primary ring-1 ring-inset ring-primary/10">
                               {tag}
                             </span>
                           ))}
                           {Object.keys(contact.customFields || {}).length > 0 && (
-                            <span className="inline-flex items-center rounded-md bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 border border-slate-150">
+                            <span className="inline-flex items-center rounded-md bg-background px-2 py-1 text-[11px] font-bold text-text-muted border border-border">
                               {Object.keys(contact.customFields).length} Custom Fields
                             </span>
                           )}
                         </div>
                       </td>
-                      <td className="py-4 px-4 text-right">
+                      <td className="py-4 px-5 text-right">
                         <div className="flex gap-2 justify-end">
                           {contact.syncStatus !== 'synced' && (
                             <button
                               onClick={() => handleRetrySync(contact._id)}
                               disabled={retryingId === contact._id}
-                              className="text-xs font-semibold text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100/70 px-2 py-1 rounded-md transition disabled:opacity-50"
+                              className="text-xs font-bold text-primary hover:text-primary-hover bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
                             >
                               {retryingId === contact._id ? (contact.syncStatus === 'delete_failed' ? 'Deleting...' : 'Syncing...') : (contact.syncStatus === 'delete_failed' ? 'Retry Delete' : 'Retry Sync')}
                             </button>
                           )}
                           <button
                             onClick={() => handleEdit(contact)}
-                            className="text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 px-2 py-1 rounded-md transition"
+                            className="text-xs font-bold text-text-muted hover:text-text bg-background hover:bg-border/50 px-3 py-1.5 rounded-lg transition-colors border border-border"
                           >
                             Edit
                           </button>
                           <button
                             onClick={() => handleDelete(contact._id)}
-                            className="text-xs font-semibold text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100/80 px-2 py-1 rounded-md transition"
+                            className="text-xs font-bold text-status-danger hover:text-red-900 bg-status-danger/10 hover:bg-status-danger/20 px-3 py-1.5 rounded-lg transition-colors"
                           >
                             Delete
                           </button>
                         </div>
                       </td>
-                    </tr>
+                    </motion.tr>
                   ))}
                 </tbody>
               </table>
@@ -537,31 +565,36 @@ const Contacts = () => {
           {/* Mobile responsive Cards list */}
           <div className="grid grid-cols-1 gap-4 md:hidden">
             {contacts.map((contact) => (
-              <div key={contact._id} className="card p-4 space-y-3 bg-white border border-slate-100 rounded-2xl shadow-sm relative pl-10">
-                <div className="absolute top-4 left-3">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                key={contact._id} 
+                className="card p-5 space-y-4 bg-card border border-border rounded-2xl shadow-sm relative pl-12"
+              >
+                <div className="absolute top-5 left-4">
                   <input 
                     type="checkbox"
-                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    className="rounded border-border text-primary focus:ring-primary cursor-pointer w-4 h-4"
                     checked={selectedIds.has(contact._id)}
                     onChange={() => handleSelectOne(contact._id)}
                   />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-bold text-slate-900 text-sm">{contact.name}</h4>
-                    <p className="text-xs text-slate-500">{contact.email || 'No email configured'}</p>
+                    <h4 className="font-bold text-text text-base">{contact.name}</h4>
+                    <p className="text-sm font-medium text-text-muted mt-0.5">{contact.email || 'No email configured'}</p>
                   </div>
                   {getSyncStatusBadge(contact.syncStatus)}
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 text-xs border-t border-slate-50 pt-2.5">
+                <div className="grid grid-cols-2 gap-3 text-sm border-t border-border pt-3">
                   <div>
-                    <span className="text-slate-400 block">Phone</span>
-                    <strong className="font-mono text-slate-700">{contact.phone}</strong>
+                    <span className="text-text-muted font-bold block mb-0.5">Phone</span>
+                    <strong className="font-mono text-text">{contact.phone}</strong>
                   </div>
                   <div>
-                    <span className="text-slate-400 block">Last Synced</span>
-                    <span className="text-slate-700 block truncate">
+                    <span className="text-text-muted font-bold block mb-0.5">Last Synced</span>
+                    <span className="text-text font-medium block truncate">
                       {contact.lastSyncedAt ? new Date(contact.lastSyncedAt).toLocaleDateString() : 'Never'}
                     </span>
                   </div>
@@ -569,9 +602,9 @@ const Contacts = () => {
 
                 {/* Mobile Tags */}
                 {contact.tags && contact.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-1.5">
                     {contact.tags.map((tag, i) => (
-                      <span key={i} className="inline-flex items-center rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 ring-1 ring-inset ring-indigo-700/10">
+                      <span key={i} className="inline-flex items-center rounded-md bg-primary/5 px-2 py-1 text-xs font-bold text-primary ring-1 ring-inset ring-primary/10">
                         {tag}
                       </span>
                     ))}
@@ -579,58 +612,62 @@ const Contacts = () => {
                 )}
 
                 {/* Mobile Actions */}
-                <div className="flex gap-2 justify-end border-t border-slate-50 pt-2.5">
+                <div className="flex gap-2 justify-end border-t border-border pt-4">
                   {contact.syncStatus !== 'synced' && (
                     <button
                       onClick={() => handleRetrySync(contact._id)}
                       disabled={retryingId === contact._id}
-                      className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg transition active:bg-indigo-100 flex-1 text-center disabled:opacity-50"
+                      className="text-sm font-bold text-primary bg-primary/10 px-3 py-2 rounded-xl transition active:bg-primary/20 flex-1 text-center disabled:opacity-50"
                     >
                       {retryingId === contact._id ? (contact.syncStatus === 'delete_failed' ? 'Deleting...' : 'Syncing...') : (contact.syncStatus === 'delete_failed' ? 'Retry Delete' : 'Retry Sync')}
                     </button>
                   )}
                   <button
                     onClick={() => handleEdit(contact)}
-                    className="text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg transition active:bg-slate-200 flex-1 text-center"
+                    className="text-sm font-bold text-text bg-background border border-border px-3 py-2 rounded-xl transition active:bg-border/50 flex-1 text-center"
                   >
                     Edit
                   </button>
                   <button
                     onClick={() => handleDelete(contact._id)}
-                    className="text-xs font-semibold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg transition active:bg-red-100 flex-1 text-center"
+                    className="text-sm font-bold text-status-danger bg-status-danger/10 px-3 py-2 rounded-xl transition active:bg-status-danger/20 flex-1 text-center"
                   >
                     Delete
                   </button>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 bg-white rounded-2xl border border-slate-100 shadow-sm text-sm">
-              <button
+            <div className="flex items-center justify-between px-5 py-4 bg-card rounded-2xl border border-border shadow-sm text-sm">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => handlePageChange(page - 1)}
                 disabled={page <= 1}
-                className="btn-secondary text-sm py-1.5 px-3 disabled:opacity-40"
+                className="btn-secondary text-sm py-2 px-4 disabled:opacity-40 border-border font-bold text-text-muted hover:text-text hover:bg-background"
               >
                 ← Previous
-              </button>
-              <span className="text-slate-500 font-medium">
+              </motion.button>
+              <span className="text-text-muted font-bold">
                 Page {page} of {totalPages} · {total} total
               </span>
-              <button
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => handlePageChange(page + 1)}
                 disabled={page >= totalPages}
-                className="btn-secondary text-sm py-1.5 px-3 disabled:opacity-40"
+                className="btn-secondary text-sm py-2 px-4 disabled:opacity-40 border-border font-bold text-text-muted hover:text-text hover:bg-background"
               >
                 Next →
-              </button>
+              </motion.button>
             </div>
           )}
         </>
       )}
-    </div>
+    </motion.div>
   );
 };
 

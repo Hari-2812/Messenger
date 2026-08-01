@@ -150,71 +150,38 @@ const createCampaign = async (req, res) => {
   }
 };
 
-// Helper function to send emails in background
+// Helper function to enqueue emails in background
 const sendCampaignEmails = async (campaign, attachments) => {
   try {
-    // We update status to Sending if not already
-    campaign.status = 'Sending';
-    await campaign.save();
-
     const contacts = await Contact.find({ _id: { $in: campaign.recipients } });
     
-    let sentCount = 0;
-    let failedCount = 0;
+    const logsToInsert = [];
 
     for (const contact of contacts) {
-      if (!contact.email) {
-        failedCount++;
-        continue;
-      }
+      if (!contact.email) continue;
       
-      // Personalization logic
-      let personalizedHtml = campaign.htmlContent;
-      personalizedHtml = personalizedHtml.replace(/\{\{name\}\}/gi, contact.name || '');
-      // Add more placeholders if needed
-
-      const response = await brevoService.sendEmail({
-        to: contact.email,
-        subject: campaign.subject,
-        htmlContent: personalizedHtml,
-        senderName: campaign.senderName,
-        senderEmail: campaign.senderEmail,
-        attachment: attachments,
-      });
-
-      const log = new EmailLog({
+      logsToInsert.push({
         campaignId: campaign._id,
         contactId: contact._id,
         recipientName: contact.name,
         recipientEmail: contact.email,
-        status: response.success ? 'sent' : 'failed',
-        messageId: response.success ? response.messageId : null,
-        sentAt: response.success ? new Date() : null,
-        errorMessage: response.success ? null : response.error
+        customFields: contact.customFields,
+        status: 'Pending'
       });
-
-      await log.save();
-
-      if (response.success) {
-        sentCount++;
-      } else {
-        failedCount++;
-      }
-      
-      // Update progress optionally via socket or DB every N emails
-      if ((sentCount + failedCount) % 10 === 0) {
-        campaign.stats.totalSent = sentCount;
-        campaign.stats.failed = failedCount;
-        await campaign.save();
-      }
     }
 
-    campaign.stats.totalSent = sentCount;
-    campaign.stats.failed = failedCount;
-    campaign.status = 'Completed';
+    if (logsToInsert.length > 0) {
+      await EmailLog.insertMany(logsToInsert);
+    }
+
+    campaign.stats.totalContacts = logsToInsert.length;
+    campaign.status = 'Sending'; // It's in the queue now
     await campaign.save();
+    
+    // The actual sending will be handled by the background cron job (emailQueue.service.js)
+    console.log(`Enqueued ${logsToInsert.length} emails for campaign ${campaign._id}`);
   } catch (error) {
-    console.error(`Error processing campaign ${campaign._id}:`, error);
+    console.error(`Error enqueueing campaign ${campaign._id}:`, error);
     campaign.status = 'Failed';
     campaign.error = error.message;
     await campaign.save();

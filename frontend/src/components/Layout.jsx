@@ -25,7 +25,7 @@ const Layout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.12),_transparent_32%),linear-gradient(180deg,_#f8faff_0%,_#f5f7fb_100%)] text-slate-900">
+    <div className="min-h-screen bg-background text-text font-sans">
       <div className="flex min-h-screen">
         <Sidebar
           open={sidebarOpen}
