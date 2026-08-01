@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { watiAPI, templatesAPI } from '../services/api';
+import { watiAPI, templatesAPI, settingsAPI } from '../services/api';
 
 /* ── Status Pill ──────────────────────────────────────────────────────── */
 const StatusPill = ({ active, trueLabel = 'Configured', falseLabel = 'Not Set' }) => (
@@ -47,10 +47,15 @@ const Toast = ({ msg, type, onClose }) => {
 /* ── WatiSettings ─────────────────────────────────────────────────────── */
 const WatiSettings = () => {
   const [settings, setSettings]   = useState(null);
+  const [emailSettings, setEmailSettings] = useState(null);
   const [loading, setLoading]     = useState(true);
   const [syncing, setSyncing]     = useState(false);
   const [toast, setToast]         = useState(null);
   const [syncResult, setSyncResult] = useState(null);
+  
+  // Sender form state
+  const [newSenderName, setNewSenderName] = useState('');
+  const [newSenderEmail, setNewSenderEmail] = useState('');
 
   const showToast = (msg, type = 'success') => setToast({ msg, type });
   const hideToast = () => setToast(null);
@@ -58,10 +63,14 @@ const WatiSettings = () => {
   const loadSettings = async () => {
     setLoading(true);
     try {
-      const { data } = await watiAPI.getSettings();
-      setSettings(data);
+      const [watiRes, emailRes] = await Promise.all([
+        watiAPI.getSettings(),
+        settingsAPI.get().catch(() => ({ data: { settings: { senders: [] } } }))
+      ]);
+      setSettings(watiRes.data);
+      if (emailRes?.data?.settings) setEmailSettings(emailRes.data.settings);
     } catch (err) {
-      showToast(err.response?.data?.message || 'Failed to load WATI settings', 'error');
+      showToast('Failed to load some settings', 'error');
     } finally {
       setLoading(false);
     }
@@ -83,16 +92,41 @@ const WatiSettings = () => {
     }
   };
 
+  const handleAddSender = async (e) => {
+    e.preventDefault();
+    if (!newSenderName || !newSenderEmail) return;
+    try {
+      await settingsAPI.addSender({ name: newSenderName, email: newSenderEmail });
+      showToast('Added new sender identity', 'success');
+      setNewSenderName('');
+      setNewSenderEmail('');
+      loadSettings();
+    } catch (err) {
+      showToast('Failed to add sender', 'error');
+    }
+  };
+
+  const handleRemoveSender = async (email) => {
+    if (!window.confirm(`Remove ${email}?`)) return;
+    try {
+      await settingsAPI.removeSender(email);
+      showToast('Removed sender identity', 'success');
+      loadSettings();
+    } catch (err) {
+      showToast('Failed to remove sender', 'error');
+    }
+  };
+
   const isWati    = settings?.provider === 'wati';
   const allGood   = settings?.endpointConfigured && settings?.accessTokenConfigured;
 
   return (
-    <div className="max-w-3xl space-y-6 animate-fade-in">
+    <div className="max-w-3xl space-y-6 animate-fade-in pb-10">
 
       {/* ── Page Header ── */}
       <div>
-        <h1 className="page-title">WATI Settings</h1>
-        <p className="page-subtitle">Manage your WhatsApp provider configuration</p>
+        <h1 className="page-title">Workspace Settings</h1>
+        <p className="page-subtitle">Manage your WhatsApp & Email Provider configurations</p>
       </div>
 
       {/* ── Provider Status Card ── */}
@@ -226,6 +260,61 @@ const WatiSettings = () => {
         </div>
       </div>
 
+      {/* ── Email Sender Management ── */}
+      <div className="card border-[#F57C20]/30 shadow-lg shadow-orange-500/5">
+        <h2 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5 text-[#F57C20]"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+          Email Senders
+        </h2>
+        <p className="text-sm text-gray-500 mb-5">Configure authorized sender addresses for your Brevo Email Campaigns.</p>
+        
+        {/* List of Senders */}
+        <div className="space-y-3 mb-6">
+          {emailSettings?.senders?.map(sender => (
+            <div key={sender.email} className="flex items-center justify-between p-3 border border-gray-100 rounded-xl bg-gray-50">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-orange-100 text-[#F57C20] flex items-center justify-center font-bold text-sm">
+                  {sender.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-800 text-sm">{sender.name}</div>
+                  <div className="text-xs text-gray-500">{sender.email}</div>
+                </div>
+              </div>
+              <button onClick={() => handleRemoveSender(sender.email)} className="text-gray-400 hover:text-red-500 transition-colors p-2">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+          ))}
+          {emailSettings?.senders?.length === 0 && (
+            <div className="text-center text-sm text-gray-400 py-4">No senders configured.</div>
+          )}
+        </div>
+
+        {/* Add New Sender Form */}
+        <form onSubmit={handleAddSender} className="flex gap-3">
+          <input 
+            type="text" 
+            placeholder="Sender Name" 
+            value={newSenderName} 
+            onChange={e => setNewSenderName(e.target.value)} 
+            className="flex-1 input-primary text-sm bg-white"
+            required 
+          />
+          <input 
+            type="email" 
+            placeholder="sender@example.com" 
+            value={newSenderEmail} 
+            onChange={e => setNewSenderEmail(e.target.value)} 
+            className="flex-1 input-primary text-sm bg-white"
+            required 
+          />
+          <button type="submit" className="bg-[#F57C20] text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-orange-600 transition-colors">
+            Add
+          </button>
+        </form>
+      </div>
+
       {/* ── Environment Guide ── */}
       <div className="card">
         <h2 className="font-bold text-gray-900 mb-4">Environment Configuration</h2>
@@ -237,9 +326,9 @@ WHATSAPP_PROVIDER=wati          # 'wati' or 'meta'
 # WATI Configuration
 WATI_API_ENDPOINT=https://live-server.wati.io
 WATI_ACCESS_TOKEN=your-token-here
-WATI_WEBHOOK_SECRET=your-secret
-WATI_WEBHOOK_VERIFY_TOKEN=your-verify-token
-WATI_BUSINESS_NUMBER=91XXXXXXXXXX`}
+
+# Email Configuration
+BREVO_API_KEY=your-brevo-api-key`}
         </pre>
       </div>
 

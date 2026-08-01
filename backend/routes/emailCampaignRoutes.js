@@ -6,7 +6,9 @@ const {
   getDashboardStats,
   createCampaign,
   getCampaignById,
-  deleteCampaign
+  deleteCampaign,
+  pauseCampaign,
+  resumeCampaign
 } = require('../controllers/emailCampaign.controller');
 const { protect } = require('../middleware/auth');
 
@@ -24,5 +26,8 @@ router.route('/')
 router.route('/:id')
   .get(getCampaignById)
   .delete(deleteCampaign);
+
+router.put('/:id/pause', pauseCampaign);
+router.put('/:id/resume', resumeCampaign);
 
 module.exports = router;

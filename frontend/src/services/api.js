@@ -121,6 +121,8 @@ export const emailCampaignsAPI = {
   },
   getById: (id) => API.get(`/email-campaigns/${id}`),
   delete: (id) => API.delete(`/email-campaigns/${id}`),
+  pause: (id) => API.put(`/email-campaigns/${id}/pause`),
+  resume: (id) => API.put(`/email-campaigns/${id}/resume`),
 };
 
 export const emailTemplatesAPI = {
@@ -129,6 +131,12 @@ export const emailTemplatesAPI = {
   create: (data) => API.post('/email-templates', data),
   update: (id, data) => API.put(`/email-templates/${id}`, data),
   delete: (id) => API.delete(`/email-templates/${id}`),
+};
+
+export const settingsAPI = {
+  get: () => API.get('/settings'),
+  addSender: (data) => API.post('/settings/senders', data),
+  removeSender: (email) => API.delete(`/settings/senders/${email}`),
 };
 
 export default API;

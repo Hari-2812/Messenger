@@ -348,21 +348,31 @@ const importContacts = async (req, res) => {
       const college = (row.College || row.college || '').trim();
       const department = (row.Department || row.department || '').trim();
 
-      if (!name || !rawPhone) {
-        errors.push({ row, reason: 'Missing name or phone' });
+      if (!name) {
+        errors.push({ row, reason: 'Missing name' });
         continue;
       }
 
-      const phoneCheck = validatePhone(rawPhone);
-      if (!phoneCheck.valid) {
-        errors.push({ row, reason: phoneCheck.error });
+      if (!rawPhone && !email) {
+        errors.push({ row, reason: 'Must provide either phone or email' });
         continue;
       }
 
-      const normalizedPhone = phoneCheck.normalized;
-      
+      let normalizedPhone = '';
+      if (rawPhone) {
+        const phoneCheck = validatePhone(rawPhone);
+        if (!phoneCheck.valid) {
+          errors.push({ row, reason: phoneCheck.error });
+          continue;
+        }
+        normalizedPhone = phoneCheck.normalized;
+      } else {
+        // Generate placeholder for email-only contacts
+        normalizedPhone = `EMAIL_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      }
+
       // In-batch duplicate checks
-      if (seenPhones.has(normalizedPhone)) {
+      if (normalizedPhone && seenPhones.has(normalizedPhone)) {
         skipped += 1;
         continue;
       }
@@ -371,14 +381,16 @@ const importContacts = async (req, res) => {
         continue;
       }
       
-      seenPhones.add(normalizedPhone);
+      if (normalizedPhone) seenPhones.add(normalizedPhone);
       if (email) seenEmails.add(email);
 
       // DB duplicate checks
-      const existingPhone = await Contact.findOne({ phone: normalizedPhone });
-      if (existingPhone) {
-        skipped += 1;
-        continue;
+      if (normalizedPhone) {
+        const existingPhone = await Contact.findOne({ phone: normalizedPhone });
+        if (existingPhone) {
+          skipped += 1;
+          continue;
+        }
       }
       
       if (email) {

@@ -222,10 +222,46 @@ const deleteCampaign = async (req, res) => {
   }
 };
 
+// @desc    Pause a campaign
+// @route   PUT /api/email-campaigns/:id/pause
+const pauseCampaign = async (req, res) => {
+  try {
+    const campaign = await EmailCampaign.findById(req.params.id);
+    if (!campaign) return res.status(404).json({ message: 'Campaign not found' });
+
+    if (campaign.status === 'Sending' || campaign.status === 'Scheduled') {
+      campaign.status = 'Paused';
+      await campaign.save();
+    }
+    res.json({ message: 'Campaign paused successfully', campaign });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Resume a campaign
+// @route   PUT /api/email-campaigns/:id/resume
+const resumeCampaign = async (req, res) => {
+  try {
+    const campaign = await EmailCampaign.findById(req.params.id);
+    if (!campaign) return res.status(404).json({ message: 'Campaign not found' });
+
+    if (campaign.status === 'Paused') {
+      campaign.status = 'Sending';
+      await campaign.save();
+    }
+    res.json({ message: 'Campaign resumed successfully', campaign });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 module.exports = {
   getCampaigns,
   getDashboardStats,
   createCampaign,
   getCampaignById,
-  deleteCampaign
+  deleteCampaign,
+  pauseCampaign,
+  resumeCampaign
 };

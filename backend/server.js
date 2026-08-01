@@ -172,6 +172,9 @@ app.use('/api/automation', automationRoutes);
 app.use('/api/email-campaigns', emailCampaignRoutes);
 app.use('/api/email-templates', emailTemplateRoutes);
 
+const settingsRoutes = require('./routes/settingsRoutes');
+app.use('/api/settings', settingsRoutes);
+
 // ── 404 Handler ────────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({
