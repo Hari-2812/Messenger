@@ -262,57 +262,58 @@ const WatiSettings = () => {
 
       {/* ── Email Sender Management ── */}
       <div className="card border-[#F57C20]/30 shadow-lg shadow-orange-500/5">
-        <h2 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5 text-[#F57C20]"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-          Email Senders
-        </h2>
-        <p className="text-sm text-gray-500 mb-5">Configure authorized sender addresses for your Brevo Email Campaigns.</p>
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h2 className="font-bold text-gray-900 flex items-center gap-2">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5 text-[#F57C20]"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+              Email Senders
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">Authorized sender address for your Brevo Email Campaigns.</p>
+          </div>
+        </div>
         
-        {/* List of Senders */}
-        <div className="space-y-3 mb-6">
-          {emailSettings?.senders?.map(sender => (
-            <div key={sender.email} className="flex items-center justify-between p-3 border border-gray-100 rounded-xl bg-gray-50">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-orange-100 text-[#F57C20] flex items-center justify-center font-bold text-sm">
-                  {sender.name.charAt(0).toUpperCase()}
+        {/* List of Senders (Now just the environment verified one) */}
+        <div className="space-y-3 mb-4">
+          {emailSettings?.senders?.length > 0 ? (
+            emailSettings.senders.map(sender => (
+              <div key={sender.email} className="flex items-center justify-between p-4 border border-emerald-100 rounded-xl bg-emerald-50">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-emerald-200 text-emerald-700 flex items-center justify-center font-bold text-lg">
+                    {sender.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="font-bold text-gray-900">{sender.name}</div>
+                    <div className="text-sm text-gray-600">{sender.email}</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="font-semibold text-gray-800 text-sm">{sender.name}</div>
-                  <div className="text-xs text-gray-500">{sender.email}</div>
+                <div className="flex items-center gap-2 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold uppercase tracking-wider">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  Verified Sender
                 </div>
               </div>
-              <button onClick={() => handleRemoveSender(sender.email)} className="text-gray-400 hover:text-red-500 transition-colors p-2">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-              </button>
+            ))
+          ) : (
+            <div className="flex items-center justify-between p-4 border border-red-100 rounded-xl bg-red-50">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-red-200 text-red-700 flex items-center justify-center font-bold text-lg">
+                  !
+                </div>
+                <div>
+                  <div className="font-bold text-gray-900">No Sender Configured</div>
+                  <div className="text-sm text-red-600">Please configure Brevo environment variables.</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                Not Verified
+              </div>
             </div>
-          ))}
-          {emailSettings?.senders?.length === 0 && (
-            <div className="text-center text-sm text-gray-400 py-4">No senders configured.</div>
           )}
         </div>
 
-        {/* Add New Sender Form */}
-        <form onSubmit={handleAddSender} className="flex gap-3">
-          <input 
-            type="text" 
-            placeholder="Sender Name" 
-            value={newSenderName} 
-            onChange={e => setNewSenderName(e.target.value)} 
-            className="flex-1 input-primary text-sm bg-white"
-            required 
-          />
-          <input 
-            type="email" 
-            placeholder="sender@example.com" 
-            value={newSenderEmail} 
-            onChange={e => setNewSenderEmail(e.target.value)} 
-            className="flex-1 input-primary text-sm bg-white"
-            required 
-          />
-          <button type="submit" className="bg-[#F57C20] text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-orange-600 transition-colors">
-            Add
-          </button>
-        </form>
+        <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-700">
+          <strong>Note:</strong> Sender identities are managed securely via environment variables (<code>BREVO_SENDER_NAME</code>, <code>BREVO_SENDER_EMAIL</code>) and cannot be modified here.
+        </div>
       </div>
 
       {/* ── Environment Guide ── */}

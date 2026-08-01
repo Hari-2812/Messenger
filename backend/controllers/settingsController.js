@@ -6,21 +6,37 @@ const getGlobalSettings = async () => {
   if (!settings) {
     settings = await Settings.create({
       type: 'global',
-      senders: [
-        {
-          name: process.env.BREVO_SENDER_NAME || 'Default Sender',
-          email: process.env.BREVO_SENDER_EMAIL || 'sender@example.com',
-        },
-      ],
+      senders: [],
     });
   }
-  return settings;
+  
+  // Inject the environment variable sender as the verified sender
+  const envSenderName = process.env.BREVO_SENDER_NAME;
+  const envSenderEmail = process.env.BREVO_SENDER_EMAIL;
+  
+  const envSender = (envSenderName && envSenderEmail) ? {
+    name: envSenderName,
+    email: envSenderEmail,
+    verified: true
+  } : null;
+
+  return { settings, envSender };
 };
 
 exports.getSettings = async (req, res) => {
   try {
-    const settings = await getGlobalSettings();
-    res.json({ success: true, settings });
+    const { settings, envSender } = await getGlobalSettings();
+    
+    // We only use the environment sender now
+    const senders = envSender ? [envSender] : [];
+    
+    res.json({ 
+      success: true, 
+      settings: {
+        ...settings.toObject(),
+        senders
+      }
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

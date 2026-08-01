@@ -19,12 +19,16 @@ class BrevoService {
   /**
    * Send a single email
    */
-  async sendEmail({ to, subject, htmlContent, senderName, senderEmail, attachment }) {
+  async sendEmail({ to, subject, htmlContent, attachment }) {
+    if (!this.apiKey || !this.senderName || !this.senderEmail) {
+      return { success: false, error: 'Brevo configuration missing. Check BREVO_API_KEY, BREVO_SENDER_NAME, BREVO_SENDER_EMAIL in .env' };
+    }
+
     try {
       const payload = {
         sender: {
-          name: senderName || this.senderName,
-          email: senderEmail || this.senderEmail,
+          name: this.senderName,
+          email: this.senderEmail,
         },
         to: [{ email: to }],
         subject: subject,
@@ -54,7 +58,11 @@ class BrevoService {
    * otherwise, we will rely on the controller to loop through contacts.
    * For simplicity and logging, we expose a bulk send method using a single template but multiple recipients.
    */
-  async sendBulkEmail({ toList, subject, htmlContent, senderName, senderEmail, attachment }) {
+  async sendBulkEmail({ toList, subject, htmlContent, attachment }) {
+    if (!this.apiKey || !this.senderName || !this.senderEmail) {
+      return { success: false, error: 'Brevo configuration missing. Check BREVO_API_KEY, BREVO_SENDER_NAME, BREVO_SENDER_EMAIL in .env' };
+    }
+
     // toList should be an array: [{ email: "a@a.com", name: "A" }, ...]
     try {
       // Brevo can handle up to 99 recipients per call in the `to` field or `bcc`
@@ -64,8 +72,8 @@ class BrevoService {
       
       const payload = {
         sender: {
-          name: senderName || this.senderName,
-          email: senderEmail || this.senderEmail,
+          name: this.senderName,
+          email: this.senderEmail,
         },
         to: toList, // WARNING: If multiple are in `to`, they might see each other depending on Brevo's campaign vs transactional endpoint behaviour. Usually, for transactional bulk, bcc is safer, but let's stick to the basic for now. 
         subject: subject,

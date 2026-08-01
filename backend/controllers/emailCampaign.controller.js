@@ -86,6 +86,10 @@ const getDashboardStats = async (req, res) => {
 // @route   POST /api/email-campaigns
 const createCampaign = async (req, res) => {
   try {
+    if (!process.env.BREVO_API_KEY || !process.env.BREVO_SENDER_NAME || !process.env.BREVO_SENDER_EMAIL) {
+      return res.status(400).json({ message: 'Brevo configuration missing. Please verify BREVO_API_KEY, BREVO_SENDER_NAME, and BREVO_SENDER_EMAIL in your environment.' });
+    }
+
     const { name, subject, senderName, senderEmail, htmlContent, templateId, scheduledAt, isDraft } = req.body;
     
     // We assume the user can optionally pass recipients, or we fetch all contacts with email
