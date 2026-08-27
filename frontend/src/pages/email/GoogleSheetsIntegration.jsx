@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
-import { googleSheetsAPI as api } from '../../services/api';
+import api from '../../services/api';
 
 const Toast = ({ msg, type, onClose }) => {
   React.useEffect(() => {
