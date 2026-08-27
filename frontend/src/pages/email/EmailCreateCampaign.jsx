@@ -424,8 +424,10 @@ export default function EmailCreateCampaign() {
                 <Icons.Check />
               </div>
               <h2 className="text-3xl font-bold text-white mb-4">Ready to Activate!</h2>
-              <p className="text-slate-400 max-w-md mx-auto mb-8">
-                Your campaign <strong>{campaignName}</strong> is ready. Clicking "Activate Campaign" will queue the emails safely. Google Apps Script will handle the automated dispatching based on your daily limit. Duplicate and Unsubscribe protections are automatically enforced.
+              <p className="text-slate-400 mt-2 leading-relaxed max-w-md mx-auto">
+                Your campaign <strong>{campaignName}</strong> is ready to send.<br /><br />
+                Clicking "Activate Campaign" will add the selected recipients to the secure email queue. The CRM will automatically process and send the emails according to your configured daily sending limit.<br /><br />
+                Duplicate and unsubscribe protections are automatically enforced.
               </p>
               
               {submitError && (

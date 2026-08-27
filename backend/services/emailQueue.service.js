@@ -15,7 +15,7 @@ const processEmailQueue = async () => {
     startOfDay.setHours(0, 0, 0, 0);
 
     const sentTodayCount = await EmailLog.countDocuments({
-      status: 'Sent',
+      status: 'sent',
       sentAt: { $gte: startOfDay }
     });
 
@@ -29,7 +29,7 @@ const processEmailQueue = async () => {
 
     // 2. Fetch pending emails up to the allowance
     const pendingEmails = await EmailLog.find({
-      status: 'Pending',
+      status: 'pending',
       retryCount: { $lt: 3 }
     })
     .sort({ createdAt: 1 })
@@ -51,7 +51,7 @@ const processEmailQueue = async () => {
         const campaign = log.campaignId;
         if (!campaign) {
           console.error(`[Queue] Campaign not found for log ${log._id}`);
-          log.status = 'Failed';
+          log.status = 'failed';
           log.failedReason = 'Campaign not found';
           await log.save();
           continue;
@@ -73,7 +73,7 @@ const processEmailQueue = async () => {
         }
 
         // Send Email
-        log.status = 'Sending';
+        log.status = 'sending';
         await log.save();
 
         const attachments = campaign.attachmentUrl ? [
@@ -97,7 +97,7 @@ const processEmailQueue = async () => {
 
         console.log(`[Queue] Successfully sent to ${log.recipientEmail}. MessageId: ${result.messageId}`);
         // Update Log
-        log.status = 'Sent';
+        log.status = 'sent';
         log.messageId = result.messageId;
         log.sentAt = new Date();
         await log.save();
@@ -115,13 +115,13 @@ const processEmailQueue = async () => {
           console.error(`- Data: ${JSON.stringify(err.response.data)}`);
         }
         
-        log.status = 'Failed';
+        log.status = 'failed';
         log.failedReason = err.message;
         log.retryCount += 1;
         
         // If it's a retryable error and retryCount < 3, set back to Pending
         if (log.retryCount < 3) {
-           log.status = 'Pending';
+           log.status = 'pending';
         }
         
         await log.save();

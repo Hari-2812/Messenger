@@ -114,7 +114,7 @@ const createCampaign = async (req, res) => {
       email: { $ne: '' },
       isDeleted: { $ne: true },
       status: { $ne: 'Unsubscribed' }
-    }).select('_id');
+    }).select('_id name email');
 
     const validRecipientIds = validContacts.map(c => c._id.toString());
     const skippedCount = recipients.length - validRecipientIds.length;
@@ -143,15 +143,18 @@ const createCampaign = async (req, res) => {
     await campaign.save();
 
     if (!isDraft && !scheduledAt) {
-      // Enqueue to CampaignRecipient
-      const CampaignRecipient = require('../models/CampaignRecipient');
-      const recipientsToInsert = validRecipientIds.map(contactId => ({
+      // Enqueue to EmailLog (the native email queue processor reads from here)
+      const EmailLog = require('../models/EmailLog');
+      
+      const emailLogsToInsert = validContacts.map(contact => ({
         campaignId: campaign._id,
-        contactId: contactId,
-        status: 'Pending'
+        contactId: contact._id,
+        recipientName: contact.name || '',
+        recipientEmail: contact.email,
+        status: 'pending'
       }));
 
-      await CampaignRecipient.insertMany(recipientsToInsert, { ordered: false });
+      await EmailLog.insertMany(emailLogsToInsert, { ordered: false });
     }
 
     res.status(201).json({ 
