@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { contactsAPI } from '../services/api';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -17,6 +17,11 @@ const Contacts = () => {
   const [importText, setImportText] = useState('');
   const [importPreview, setImportPreview] = useState(null);
   const [importing, setImporting] = useState(false);
+
+  // Bulk Delete / Selection state
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const fetchContacts = useCallback(async (p = 1, q = '') => {
     setLoading(true);
@@ -61,6 +66,59 @@ const Contacts = () => {
     fetchContacts(newPage, search);
   };
 
+  // Selection Logic
+  const handleSelectAll = () => {
+    const newSelected = new Set(selectedIds);
+    contacts.forEach(c => newSelected.add(c._id));
+    setSelectedIds(newSelected);
+  };
+
+  const handleUnselectAll = () => {
+    const newSelected = new Set(selectedIds);
+    contacts.forEach(c => newSelected.delete(c._id));
+    setSelectedIds(newSelected);
+  };
+
+  const toggleSelection = (id) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  // Bulk Delete Logic
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    
+    setIsDeleting(true);
+    const loadingToast = toast.loading('Deleting contacts...');
+    
+    try {
+      const res = await contactsAPI.bulkDelete({ ids: Array.from(selectedIds) });
+      
+      if (res.data.success || res.data.deletedCount > 0 || res.data.deleted > 0) {
+        const delCount = res.data.deletedCount || res.data.deleted;
+        toast.success(`${delCount} contacts deleted successfully.`, {
+          id: loadingToast,
+          duration: 4000
+        });
+        setSelectedIds(new Set());
+        setShowDeleteConfirm(false);
+        // Soft refresh current page
+        fetchContacts(page, search);
+      } else {
+        toast.error(res.data.message || 'Failed to delete contacts', { id: loadingToast });
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Unable to delete selected contacts. Please try again.', { id: loadingToast });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // Bulk Import Logic
   const handlePreviewImport = () => {
     if (!importText.trim()) {
@@ -74,7 +132,6 @@ const Contacts = () => {
     let invalidCount = 0;
 
     rows.forEach(row => {
-      // detect delimiter: comma or tab
       const delimiter = row.includes('\t') ? '\t' : (row.includes(',') ? ',' : (row.includes(';') ? ';' : null));
       let name = '';
       let email = '';
@@ -89,13 +146,11 @@ const Contacts = () => {
           name = email.split('@')[0];
         }
       } else {
-        // try space separated if exactly two words and one is email
         const parts = row.split(' ').filter(p => p.trim());
         if (parts.length === 2 && parts[1].includes('@')) {
           name = parts[0].trim();
           email = parts[1].trim();
         } else {
-          // just assume the whole row might be an email or Name Email
           const emailMatch = row.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi);
           if (emailMatch) {
             email = emailMatch[0];
@@ -233,6 +288,40 @@ const Contacts = () => {
         </div>
       </div>
 
+      {/* Bulk Selection Actions */}
+      {!loading && contacts.length > 0 && (
+        <div className="flex items-center gap-3 p-3 bg-card border border-border rounded-xl shadow-sm">
+          <button
+            onClick={handleSelectAll}
+            disabled={isDeleting}
+            className="text-sm font-bold text-text-muted hover:text-text px-3 py-1.5 rounded-lg bg-background hover:bg-border transition-colors disabled:opacity-50"
+          >
+            Select All
+          </button>
+          <button
+            onClick={handleUnselectAll}
+            disabled={isDeleting}
+            className="text-sm font-bold text-text-muted hover:text-text px-3 py-1.5 rounded-lg bg-background hover:bg-border transition-colors disabled:opacity-50"
+          >
+            Unselect All
+          </button>
+
+          <div className="mx-2 h-4 w-px bg-border"></div>
+          
+          <span className="text-sm font-bold text-primary mr-auto">
+            {selectedIds.size} Selected
+          </span>
+
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            disabled={selectedIds.size === 0 || isDeleting}
+            className="text-sm font-bold text-white px-4 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isDeleting ? 'Deleting...' : 'Delete Selected'}
+          </button>
+        </div>
+      )}
+
       {/* Main Content */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-24 bg-card border border-border rounded-2xl shadow-sm">
@@ -242,7 +331,7 @@ const Contacts = () => {
       ) : contacts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 bg-card border border-border rounded-2xl shadow-sm text-center">
           <div className="text-6xl mb-4 opacity-80">👥</div>
-          <h4 className="text-xl font-bold text-text">No contacts yet.</h4>
+          <h4 className="text-xl font-bold text-text">No contacts found.</h4>
           <p className="text-base text-text-muted max-w-sm mt-2 font-medium mb-6">
             Import contacts to start your email campaigns.
           </p>
@@ -260,7 +349,11 @@ const Contacts = () => {
               <table className="w-full text-sm whitespace-nowrap">
                 <thead className="bg-background/80 border-b border-border">
                   <tr>
-                    <th className="text-left py-4 px-5 font-bold text-text-muted">Contact</th>
+                    <th className="w-12 text-center py-4 px-2">
+                      <span className="sr-only">Select</span>
+                    </th>
+                    <th className="text-left py-4 px-5 font-bold text-text-muted">Name</th>
+                    <th className="text-left py-4 px-4 font-bold text-text-muted">Email</th>
                     <th className="text-left py-4 px-4 font-bold text-text-muted">Source</th>
                     <th className="text-left py-4 px-4 font-bold text-text-muted">Status</th>
                     <th className="text-left py-4 px-4 font-bold text-text-muted">Added On</th>
@@ -272,12 +365,24 @@ const Contacts = () => {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       key={contact._id} 
-                      className="hover:bg-background/50 transition-colors"
+                      className="hover:bg-background/50 transition-colors cursor-pointer"
+                      onClick={() => toggleSelection(contact._id)}
                     >
+                      <td className="py-4 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4 text-primary rounded border-border focus:ring-primary cursor-pointer"
+                          checked={selectedIds.has(contact._id)}
+                          onChange={() => toggleSelection(contact._id)}
+                          disabled={isDeleting}
+                        />
+                      </td>
                       <td className="py-4 px-5">
                         <div className="font-bold text-text">{contact.name}</div>
-                        <div className="text-xs text-text-muted mt-0.5 font-medium">{contact.email}</div>
                         {contact.phone && <div className="text-xs text-text-muted font-mono">{contact.phone}</div>}
+                      </td>
+                      <td className="py-4 px-4 text-text-muted font-medium">
+                        {contact.email || '-'}
                       </td>
                       <td className="py-4 px-4 text-text-muted font-medium">
                         {contact.source || 'CRM'}
@@ -323,6 +428,47 @@ const Contacts = () => {
           )}
         </>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.95 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.95 }}
+              className="bg-card w-full max-w-md rounded-2xl border border-border shadow-2xl p-6"
+            >
+              <h3 className="text-xl font-bold text-text mb-4">Delete Contacts?</h3>
+              <p className="text-text-muted mb-6">
+                You are about to permanently delete <strong>{selectedIds.size}</strong> contacts. This action cannot be undone.
+              </p>
+              
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={isDeleting}
+                  className="px-5 py-2.5 rounded-xl font-bold text-text-muted hover:text-text hover:bg-background transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteSelected}
+                  disabled={isDeleting}
+                  className="px-5 py-2.5 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 transition-colors shadow-lg disabled:opacity-50"
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete Contacts'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Bulk Import Modal */}
       <AnimatePresence>

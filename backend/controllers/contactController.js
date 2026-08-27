@@ -193,48 +193,39 @@ const deleteContact = async (req, res) => {
 const bulkDeleteContacts = async (req, res) => {
   const { ids } = req.body;
   if (!Array.isArray(ids) || ids.length === 0) {
-    return res.status(400).json({ message: 'No contact IDs provided' });
+    return res.status(400).json({ success: false, message: 'No contact IDs provided' });
   }
 
-  const contacts = await Contact.find({ _id: { $in: ids } });
-  
-  if (contacts.length === 0) {
-    return res.status(404).json({ message: 'No valid contacts found' });
+  // Use req.user._id if authentication is applied
+  const filter = { _id: { $in: ids }, isDeleted: { $ne: true } };
+  if (req.user && req.user._id) {
+    filter.userId = req.user._id; // Enforce ownership if userId is tracked
   }
 
-  let deletedCount = 0;
-  let failedCount = 0;
-  
-  for (const contact of contacts) {
-    let success = true;
-    if (ProviderFactory.getProvider() === 'wati') {
-      try {
-        console.log(`[Contact Bulk Delete] Deleting WATI Contact: ${contact.phone}`);
-        const watiRes = await watiService.deleteContact(contact);
-        console.log(`[Contact Bulk Delete] WATI Delete Response:`, watiRes);
-      } catch (err) {
-        console.error(`[Contact Bulk Delete] Full WATI Error: ${err.message}`);
-        contact.syncStatus = 'delete_failed';
-        contact.syncError = err.message;
-        await contact.save();
-        success = false;
-        failedCount++;
-      }
-    }
+  try {
+    const contacts = await Contact.find(filter);
     
-    if (success) {
-      contact.isDeleted = true;
-      contact.deletedAt = new Date();
-      await contact.save();
-      deletedCount++;
+    if (contacts.length === 0) {
+      return res.status(404).json({ success: false, message: 'No valid contacts found or unauthorized' });
     }
-  }
 
-  res.json({ 
-    message: `Successfully deleted ${deletedCount} contacts` + (failedCount > 0 ? `, ${failedCount} failed` : ''),
-    deleted: deletedCount,
-    failed: failedCount
-  });
+    const contactIdsToDelete = contacts.map(c => c._id);
+
+    // Perform a bulk write to soft-delete
+    const result = await Contact.updateMany(
+      { _id: { $in: contactIdsToDelete } },
+      { $set: { isDeleted: true, deletedAt: new Date() } }
+    );
+
+    res.json({ 
+      success: true,
+      message: `Successfully deleted ${result.modifiedCount} contacts`,
+      deletedCount: result.modifiedCount
+    });
+  } catch (error) {
+    console.error('[Contact Bulk Delete] Error:', error);
+    res.status(500).json({ success: false, message: 'Server error during deletion' });
+  }
 };
 
 // @desc    Sync all unsynced contacts to WATI
