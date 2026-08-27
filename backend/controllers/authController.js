@@ -18,23 +18,21 @@ const register = async (req, res) => {
   console.log('[DEBUG] Route reached: POST /api/auth/register');
   console.log('[DEBUG] Request body:', JSON.stringify(req.body, null, 2));
   
-  const { firstName, lastName, companyName, email, phone, password } = req.body;
+  const { name, email, password } = req.body;
 
-  if (!firstName || !lastName || !companyName || !email || !phone || !password) {
+  if (!name || !email || !password) {
     console.log('[DEBUG] Validation result: FAILED (Missing required fields)');
     return res.status(400).json({ message: 'Please provide all required fields' });
   }
+
+  const nameParts = name.trim().split(' ');
+  const firstName = nameParts[0];
+  const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
 
   const emailRegex = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
   if (!emailRegex.test(email)) {
     console.log('[DEBUG] Validation result: FAILED (Invalid email format)');
     return res.status(400).json({ message: 'Invalid email address' });
-  }
-
-  const phoneRegex = /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]*$/;
-  if (!phoneRegex.test(phone)) {
-    console.log('[DEBUG] Validation result: FAILED (Invalid phone format)');
-    return res.status(400).json({ message: 'Invalid phone format' });
   }
 
   const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
@@ -49,14 +47,7 @@ const register = async (req, res) => {
   const userExists = await User.findOne({ email: email.toLowerCase().trim() });
   if (userExists) {
     console.log('[DEBUG] MongoDB check: FAILED (Duplicate email)');
-    return res.status(409).json({ message: 'User already exists with this email' });
-  }
-
-  // Check for duplicate phone
-  const phoneExists = await User.findOne({ phone: phone.trim() });
-  if (phoneExists) {
-    console.log('[DEBUG] MongoDB check: FAILED (Duplicate phone)');
-    return res.status(409).json({ message: 'User already exists with this phone number' });
+    return res.status(409).json({ message: 'An account with this email already exists. Please sign in.' });
   }
 
   console.log('[DEBUG] MongoDB save: STARTING');
@@ -65,9 +56,7 @@ const register = async (req, res) => {
     user = await User.create({
       firstName,
       lastName,
-      companyName,
       email: email.toLowerCase().trim(),
-      phone: phone.trim(),
       password, // Mongoose pre-save hook handles bcrypt hashing
       lastLogin: new Date(),
     });

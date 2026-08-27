@@ -56,7 +56,6 @@ const PasswordStrengthMeter = ({ password }) => {
 const Register = () => {
   const { user, register: registerUser, loading } = useAuth();
   const [showPass, setShowPass] = useState(false);
-  const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm({
@@ -79,11 +78,8 @@ const Register = () => {
     setSubmitting(true);
     try {
       await registerUser({
-        firstName: data.firstName,
-        lastName: data.lastName,
-        companyName: data.companyName,
-        email: data.email,
-        phone: data.phone,
+        name: data.name.trim(),
+        email: data.email.trim(),
         password: data.password,
       });
       toast.success('Account created successfully!');
@@ -104,7 +100,7 @@ const Register = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="w-full max-w-2xl bg-[#1f2937] p-8 sm:p-10 rounded-3xl shadow-2xl border border-white/10 my-8"
+        className="w-full max-w-md bg-[#1f2937] p-8 sm:p-10 rounded-3xl shadow-2xl border border-white/10 my-8"
       >
         <div className="flex flex-col items-center mb-8">
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-gradient-to-br from-[#F57C20] to-[#f59e0b] shadow-lg mb-6">
@@ -113,57 +109,25 @@ const Register = () => {
             </svg>
           </div>
           <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-2 text-center">Create your account</h2>
-          <p className="text-slate-400 text-sm sm:text-base text-center">Start managing your campaigns</p>
+          <p className="text-slate-400 text-sm sm:text-base text-center">Start managing your email campaigns.</p>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-semibold text-slate-300 mb-2">First Name</label>
-              <input
-                {...register('firstName', { required: 'First name is required.' })}
-                className={`w-full bg-[#374151] border ${errors.firstName ? 'border-red-500' : 'border-white/10'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#F57C20] transition-colors`}
-                placeholder="John"
-              />
-              {errors.firstName && <p className="mt-2 text-xs text-red-400">{errors.firstName.message}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-slate-300 mb-2">Last Name</label>
-              <input
-                {...register('lastName', { required: 'Last name is required.' })}
-                className={`w-full bg-[#374151] border ${errors.lastName ? 'border-red-500' : 'border-white/10'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#F57C20] transition-colors`}
-                placeholder="Doe"
-              />
-              {errors.lastName && <p className="mt-2 text-xs text-red-400">{errors.lastName.message}</p>}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-semibold text-slate-300 mb-2">Company Name</label>
-              <input
-                {...register('companyName', { required: 'Company name is required.' })}
-                className={`w-full bg-[#374151] border ${errors.companyName ? 'border-red-500' : 'border-white/10'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#F57C20] transition-colors`}
-                placeholder="Acme Inc."
-              />
-              {errors.companyName && <p className="mt-2 text-xs text-red-400">{errors.companyName.message}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-slate-300 mb-2">Phone Number</label>
-              <input
-                {...register('phone', { 
-                  required: 'Phone number is required.',
-                  pattern: { value: /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]*$/, message: 'Invalid phone format.' }
-                })}
-                className={`w-full bg-[#374151] border ${errors.phone ? 'border-red-500' : 'border-white/10'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#F57C20] transition-colors`}
-                placeholder="+1 (555) 000-0000"
-              />
-              {errors.phone && <p className="mt-2 text-xs text-red-400">{errors.phone.message}</p>}
-            </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-300 mb-2">Full Name</label>
+            <input
+              {...register('name', { 
+                required: 'Name is required.',
+                validate: value => value.trim().length > 1 || 'Name is too short.'
+              })}
+              className={`w-full bg-[#374151] border ${errors.name ? 'border-red-500' : 'border-white/10'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#F57C20] transition-colors`}
+              placeholder="Enter your full name"
+            />
+            {errors.name && <p className="mt-2 text-xs text-red-400">{errors.name.message}</p>}
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-300 mb-2">Email Address</label>
+            <label className="block text-sm font-semibold text-slate-300 mb-2">Email</label>
             <input
               type="email"
               autoComplete="email"
@@ -172,82 +136,41 @@ const Register = () => {
                 pattern: { value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i, message: 'Please enter a valid email address.' }
               })}
               className={`w-full bg-[#374151] border ${errors.email ? 'border-red-500' : 'border-white/10'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#F57C20] transition-colors`}
-              placeholder="you@example.com"
+              placeholder="Enter your email address"
             />
             {errors.email && <p className="mt-2 text-xs text-red-400">{errors.email.message}</p>}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-semibold text-slate-300 mb-2">Password</label>
-              <div className="relative">
-                <input
-                  type={showPass ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  {...register('password', {
-                    required: 'Password is required.',
-                    minLength: { value: 8, message: 'Minimum 8 characters.' },
-                    pattern: {
-                      value: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
-                      message: 'Must include uppercase, lowercase, number, and special character.'
-                    }
-                  })}
-                  className={`w-full bg-[#374151] border ${errors.password ? 'border-red-500' : 'border-white/10'} rounded-xl px-4 py-3 pr-12 text-white focus:outline-none focus:border-[#F57C20] transition-colors`}
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass(!showPass)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
-                  tabIndex={-1}
-                  aria-label="Toggle password visibility"
-                >
-                  {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-              {errors.password && <p className="mt-2 text-xs text-red-400">{errors.password.message}</p>}
-              {!errors.password && passwordValue && <PasswordStrengthMeter password={passwordValue} />}
+          <div>
+            <label className="block text-sm font-semibold text-slate-300 mb-2">Password</label>
+            <div className="relative">
+              <input
+                type={showPass ? 'text' : 'password'}
+                autoComplete="new-password"
+                {...register('password', {
+                  required: 'Password is required.',
+                  minLength: { value: 8, message: 'Minimum 8 characters.' },
+                  pattern: {
+                    value: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
+                    message: 'Password does not meet the required security rules.'
+                  }
+                })}
+                className={`w-full bg-[#374151] border ${errors.password ? 'border-red-500' : 'border-white/10'} rounded-xl px-4 py-3 pr-12 text-white focus:outline-none focus:border-[#F57C20] transition-colors`}
+                placeholder="Create a password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPass(!showPass)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                tabIndex={-1}
+                aria-label="Toggle password visibility"
+              >
+                {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
             </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-300 mb-2">Confirm Password</label>
-              <div className="relative">
-                <input
-                  type={showConfirmPass ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  {...register('confirmPassword', {
-                    required: 'Please confirm your password.',
-                    validate: (val) => val === passwordValue || 'Passwords do not match.'
-                  })}
-                  className={`w-full bg-[#374151] border ${errors.confirmPassword ? 'border-red-500' : 'border-white/10'} rounded-xl px-4 py-3 pr-12 text-white focus:outline-none focus:border-[#F57C20] transition-colors`}
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPass(!showConfirmPass)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
-                  tabIndex={-1}
-                  aria-label="Toggle password visibility"
-                >
-                  {showConfirmPass ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-              {errors.confirmPassword && <p className="mt-2 text-xs text-red-400">{errors.confirmPassword.message}</p>}
-            </div>
+            {errors.password && <p className="mt-2 text-xs text-red-400">{errors.password.message}</p>}
+            {!errors.password && passwordValue && <PasswordStrengthMeter password={passwordValue} />}
           </div>
-
-          <div className="flex items-start gap-2 mt-2">
-            <input
-              type="checkbox"
-              id="terms"
-              {...register('terms', { required: 'You must agree to the terms.' })}
-              className="mt-1 w-4 h-4 text-[#F57C20] border-white/20 rounded focus:ring-[#F57C20] bg-[#374151]"
-            />
-            <label htmlFor="terms" className="text-sm text-slate-400 font-medium leading-relaxed">
-              I agree to the <a href="#" className="text-[#F57C20] hover:text-orange-400 transition-colors">Terms of Service</a> and <a href="#" className="text-[#F57C20] hover:text-orange-400 transition-colors">Privacy Policy</a>
-            </label>
-          </div>
-          {errors.terms && <p className="text-xs text-red-400 mt-0">{errors.terms.message}</p>}
 
           <motion.button
             whileHover={{ scale: 1.01 }}
@@ -274,7 +197,7 @@ const Register = () => {
           <p className="text-sm text-slate-400">
             Already have an account?{' '}
             <Link to="/login" className="text-[#F57C20] font-bold hover:text-orange-400 transition-colors">
-              Login
+              Sign in
             </Link>
           </p>
         </div>
