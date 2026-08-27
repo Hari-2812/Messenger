@@ -27,15 +27,12 @@ const getAuth = async () => {
     return google.sheets({ version: 'v4', auth });
   }
 
-  const apiKey = process.env.GOOGLE_API_KEY;
-  if (apiKey) {
-    console.log(`[GoogleAuth] Authentication method: api_key (WARNING: This cannot read private sheets)`);
-    return google.sheets({ version: 'v4', auth: apiKey });
-  }
-
-  console.error('[GoogleAuth] No valid authentication credentials found in environment variables.');
-  const error = new Error('No Google Service Account (GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY) found.');
-  error.code = 'GOOGLE_AUTH_FAILED';
+  // Strictly enforce service account credentials for reading private sheets.
+  // We MUST NOT fall back to GOOGLE_API_KEY because an API key cannot read private sheets
+  // and will result in an obscure 403 Access Denied error that is hard to debug.
+  console.error('[GoogleAuth] No valid service account credentials found in environment variables.');
+  const error = new Error('No Google Service Account (GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY) found. API Key cannot be used for private sheets.');
+  error.code = 'GOOGLE_SHEET_AUTH_NOT_CONFIGURED';
   throw error;
 };
 
@@ -177,8 +174,8 @@ exports.syncCampaignSheet = async (req, res) => {
     } catch (err) {
       return res.status(401).json({
         success: false,
-        code: 'GOOGLE_AUTH_FAILED',
-        message: 'Unable to authenticate with Google Sheets.'
+        code: err.code || 'GOOGLE_AUTH_FAILED',
+        message: err.message || 'Unable to authenticate with Google Sheets.'
       });
     }
 
