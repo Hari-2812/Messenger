@@ -134,3 +134,118 @@ exports.syncContacts = async (req, res) => {
     res.status(500).json({ success: false, message: 'Sync failed: ' + error.message });
   }
 };
+
+exports.syncCampaignSheet = async (req, res) => {
+  try {
+    const sheetId = process.env.EMAIL_CAMPAIGN_SHEET_ID;
+    if (!sheetId) {
+      return res.status(400).json({ success: false, message: 'EMAIL_CAMPAIGN_SHEET_ID is not configured in Render environment variables.' });
+    }
+
+    const sheets = await getAuth();
+    const sheetName = process.env.EMAIL_CAMPAIGN_SHEET_TAB || '';
+    
+    let rangeToFetch = 'A:Z';
+    if (sheetName) {
+      rangeToFetch = `${sheetName}!A:Z`;
+    }
+
+    const response = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: rangeToFetch });
+    const rows = response.data.values;
+    
+    if (!rows || rows.length <= 1) {
+      return res.json({ success: true, imported: 0, updated: 0, skipped: 0, invalid: 0, total: 0 });
+    }
+
+    const headers = rows[0].map(h => h.toString().toLowerCase().trim());
+    const dataRows = rows.slice(1);
+    
+    // Auto-map headers based on common names
+    const findHeader = (matches) => {
+      for (const m of matches) {
+        const idx = headers.findIndex(h => h === m || h.includes(m));
+        if (idx !== -1) return idx;
+      }
+      return -1;
+    };
+
+    const mapIdx = {
+      email: findHeader(['email', 'e-mail', 'email address']),
+      name: findHeader(['name', 'full name', 'first name', 'contact name', 'recipient']),
+      companyName: findHeader(['company', 'organization', 'business']),
+      phone: findHeader(['phone', 'mobile', 'cell', 'telephone']),
+      website: findHeader(['website', 'url', 'site']),
+      industry: findHeader(['industry', 'sector', 'niche']),
+      location: findHeader(['location', 'city', 'address', 'country']),
+    };
+
+    if (mapIdx.email === -1) {
+      return res.status(400).json({ success: false, message: 'Could not find an Email column in the spreadsheet. Please ensure a column contains "Email".' });
+    }
+
+    let imported = 0;
+    let updated = 0;
+    let skipped = 0;
+    let invalid = 0;
+
+    for (const row of dataRows) {
+      const email = row[mapIdx.email] ? row[mapIdx.email].toString().trim() : '';
+      
+      // Basic email validation
+      if (!email || !email.includes('@')) {
+        invalid++;
+        continue;
+      }
+
+      const contactData = { email };
+      if (mapIdx.name !== -1 && row[mapIdx.name]) contactData.name = row[mapIdx.name].toString().trim();
+      else contactData.name = email.split('@')[0]; // Default name to email prefix if not provided
+      
+      if (mapIdx.companyName !== -1 && row[mapIdx.companyName]) contactData.companyName = row[mapIdx.companyName].toString().trim();
+      if (mapIdx.phone !== -1 && row[mapIdx.phone]) contactData.phone = row[mapIdx.phone].toString().trim();
+      if (mapIdx.website !== -1 && row[mapIdx.website]) contactData.website = row[mapIdx.website].toString().trim();
+      if (mapIdx.industry !== -1 && row[mapIdx.industry]) contactData.industry = row[mapIdx.industry].toString().trim();
+      if (mapIdx.location !== -1 && row[mapIdx.location]) contactData.location = row[mapIdx.location].toString().trim();
+
+      const existing = await Contact.findOne({ email: contactData.email });
+      if (existing) {
+        // Update fields but protect unsubscribe state and campaign history
+        let isModified = false;
+        
+        ['name', 'companyName', 'phone', 'website', 'industry', 'location'].forEach(field => {
+          if (contactData[field] && existing[field] !== contactData[field]) {
+            existing[field] = contactData[field];
+            isModified = true;
+          }
+        });
+
+        if (isModified) {
+          await existing.save();
+          updated++;
+        } else {
+          skipped++;
+        }
+      } else {
+        const newContact = new Contact({ ...contactData, source: 'Email Campaign Sheet' });
+        await newContact.save();
+        imported++;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Sync completed',
+      total: dataRows.length,
+      imported,
+      updated,
+      skipped,
+      invalid
+    });
+
+  } catch (error) {
+    if (error.code === 403 || error.code === 404) {
+      return res.status(403).json({ success: false, message: 'The configured Google account does not have access to this spreadsheet. Ensure it is shared as "Anyone with the link can view".' });
+    }
+    res.status(500).json({ success: false, message: 'Sync failed: ' + error.message });
+  }
+};

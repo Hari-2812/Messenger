@@ -12,7 +12,6 @@ import Contacts from './pages/Contacts';
 // Email Pages (now the primary CRM features)
 import EmailCreateCampaign from './pages/email/EmailCreateCampaign';
 import EmailTemplates from './pages/email/EmailTemplates';
-import GoogleSheetsIntegration from './pages/email/GoogleSheetsIntegration';
 
 function App() {
   return (
@@ -25,7 +24,6 @@ function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/contacts" element={<Contacts />} />
-          <Route path="/contacts/import" element={<GoogleSheetsIntegration />} />
           <Route path="/templates" element={<EmailTemplates />} />
           <Route path="/campaigns" element={<EmailCreateCampaign />} />
           <Route path="/profile" element={<Profile />} />

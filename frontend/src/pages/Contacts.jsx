@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import { contactsAPI } from '../services/api';
-import { Link } from 'react-router-dom';
+import { contactsAPI, googleSheetsAPI } from '../services/api';
+import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Contacts = () => {
@@ -11,6 +11,7 @@ const Contacts = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [syncing, setSyncing] = useState(false);
 
   const fetchContacts = useCallback(async (p = 1, q = '') => {
     setLoading(true);
@@ -55,6 +56,30 @@ const Contacts = () => {
     fetchContacts(newPage, search);
   };
 
+  const handleSyncSheet = async () => {
+    setSyncing(true);
+    const loadingToast = toast.loading('Syncing with Google Sheets...');
+    try {
+      const res = await googleSheetsAPI.syncCampaignSheet();
+      if (res.data.success) {
+        const d = res.data;
+        toast.success(`Sync Complete: ${d.imported} New, ${d.updated} Updated, ${d.skipped} Skipped, ${d.invalid} Invalid.`, {
+          id: loadingToast,
+          duration: 5000
+        });
+        // Auto refresh
+        setPage(1);
+        fetchContacts(1, search);
+      } else {
+        toast.error(res.data.message || 'Sync failed', { id: loadingToast });
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Sync failed', { id: loadingToast });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const getStatusBadge = (status) => {
     switch (status?.toLowerCase()) {
       case 'sent':
@@ -95,12 +120,20 @@ const Contacts = () => {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link
-            to="/contacts/import"
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-secondary px-5 py-2.5 text-sm font-bold text-white shadow-lg hover:shadow-xl transition-all"
+          <button
+            onClick={handleSyncSheet}
+            disabled={syncing}
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-secondary px-5 py-2.5 text-sm font-bold text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            📁 Import from Google Sheets
-          </Link>
+            {syncing ? (
+              <>
+                <div className="spinner w-4 h-4 border-white border-t-transparent" />
+                Syncing...
+              </>
+            ) : (
+              '📁 Sync Email Campaign Sheet'
+            )}
+          </button>
         </div>
       </div>
 
@@ -140,12 +173,13 @@ const Contacts = () => {
           <p className="text-base text-text-muted max-w-sm mt-2 font-medium mb-6">
             Import contacts from Google Sheets to start your email campaigns.
           </p>
-          <Link
-            to="/contacts/import"
-            className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-primary-hover"
+          <button
+            onClick={handleSyncSheet}
+            disabled={syncing}
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-primary-hover disabled:opacity-70"
           >
-            Import from Google Sheets
-          </Link>
+            {syncing ? 'Syncing...' : 'Sync Email Campaign Sheet'}
+          </button>
         </div>
       ) : (
         <>

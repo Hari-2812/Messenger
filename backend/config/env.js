@@ -46,6 +46,9 @@ const validateEnv = () => {
   if (!process.env.GOOGLE_API_KEY) {
     console.warn('[Env] WARNING: GOOGLE_API_KEY is not set. Google Sheets integration will not work until this is configured in Render.');
   }
+  if (!process.env.EMAIL_CAMPAIGN_SHEET_ID) {
+    console.warn('[Env] WARNING: EMAIL_CAMPAIGN_SHEET_ID is not set. One-click sync will fail until configured.');
+  }
 
   console.log('[Env] All required environment variables present');
   console.log(`[Env] Provider: ${provider === 'wati' ? 'WATI WhatsApp Business API' : 'Meta WhatsApp Cloud API'}`);

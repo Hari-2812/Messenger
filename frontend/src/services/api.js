@@ -146,6 +146,7 @@ export const googleSheetsAPI = {
   getSheets: (spreadsheetId) => API.get(`/google-sheets/spreadsheets/${spreadsheetId}/sheets`),
   getHeaders: (spreadsheetId, sheetName) => API.get(`/google-sheets/spreadsheets/${spreadsheetId}/sheets/${sheetName}/headers`),
   importContacts: (data) => API.post('/google-sheets/import', data),
+  syncCampaignSheet: () => API.post('/google-sheets/sync-campaign-sheet'),
 };
 
 export default API;
