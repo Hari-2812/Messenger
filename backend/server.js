@@ -30,6 +30,14 @@ const { initCronJobs } = require('./services/emailQueue.service');
 const app = express();
 const server = http.createServer(app);
 
+// Trust the first proxy (Render load balancers) so rate limiting gets the correct client IP
+app.set('trust proxy', 1);
+
+// ── Root Health Check (Render) ────────────────────────────────────────────────
+app.get(['/', '/health'], (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'Backend is running' });
+});
+
 // ── CORS Configuration ───────────────────────────────────────────────────────
 // Use explicit allowlist — never a wildcard regex open to subdomain takeover
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
