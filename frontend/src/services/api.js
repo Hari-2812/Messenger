@@ -139,4 +139,13 @@ export const settingsAPI = {
   removeSender: (email) => API.delete(`/settings/senders/${email}`),
 };
 
+export const googleSheetsAPI = {
+  getAuthUrl: () => API.get('/google-sheets/auth-url'),
+  checkAuth: () => API.get('/google-sheets/check-auth'),
+  getSpreadsheets: () => API.get('/google-sheets/spreadsheets'),
+  getSheets: (spreadsheetId) => API.get(`/google-sheets/spreadsheets/${spreadsheetId}/sheets`),
+  getHeaders: (spreadsheetId, sheetName) => API.get(`/google-sheets/spreadsheets/${spreadsheetId}/sheets/${sheetName}/headers`),
+  importContacts: (data) => API.post('/google-sheets/import', data),
+};
+
 export default API;

@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { toast } from 'react-hot-toast'; // Assuming react-hot-toast is used, or fallback
-// Actually, let's use a simple custom toast like in EmailCreateCampaign
-import api from '../../../services/api';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'react-hot-toast';
+import { googleSheetsAPI as api } from '../../services/api';
 
 const Toast = ({ msg, type, onClose }) => {
   React.useEffect(() => {
