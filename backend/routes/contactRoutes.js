@@ -6,6 +6,7 @@ const {
   deleteContact,
   bulkDeleteContacts,
   importContacts,
+  bulkImportContacts,
   syncAllContacts,
   retrySyncContact,
 } = require('../controllers/contactController');
@@ -20,6 +21,7 @@ router.use(protect);
 router.get('/', getContacts);
 router.post('/', createContact);
 router.post('/import', upload.single('file'), importContacts);
+router.post('/bulk-import', bulkImportContacts);
 router.post('/sync-all', protect, syncAllContacts);
 router.post('/:id/sync-retry', protect, retrySyncContact);
 router.post('/bulk-delete', bulkDeleteContacts);

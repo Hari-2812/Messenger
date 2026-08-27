@@ -8,14 +8,39 @@ const Settings = require('../models/Settings'); // Assuming Settings exist
 // We will store Google Sheets credentials in Settings or Environment.
 
 const getAuth = async () => {
+  const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
   const privateKey = process.env.GOOGLE_PRIVATE_KEY;
+
+  if (serviceAccountJson) {
+    try {
+      const credentials = JSON.parse(serviceAccountJson);
+      
+      if (credentials.type === 'external_account') {
+        console.log(`[GoogleAuth] Authentication method: workload_identity`);
+        console.log(`[GoogleAuth] Project ID: ${process.env.GOOGLE_PROJECT_ID || 'Unknown (provided by WIF)'}`);
+      } else {
+        console.log(`[GoogleAuth] Authentication method: service_account`);
+        console.log(`[GoogleAuth] Client email: ${credentials.client_email}`);
+      }
+
+      const auth = new google.auth.GoogleAuth({
+        credentials,
+        scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+      });
+      return google.sheets({ version: 'v4', auth });
+    } catch (e) {
+      console.error('[GoogleAuth] Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON', e.message);
+      const error = new Error('Invalid GOOGLE_SERVICE_ACCOUNT_JSON format.');
+      error.code = 'GOOGLE_SHEET_AUTH_NOT_CONFIGURED';
+      throw error;
+    }
+  }
 
   if (clientEmail && privateKey) {
     const formattedPrivateKey = privateKey.replace(/\\n/g, '\n');
     console.log(`[GoogleAuth] Authentication method: service_account`);
     console.log(`[GoogleAuth] Client email: ${clientEmail}`);
-    console.log(`[GoogleAuth] Private key detected (length: ${privateKey.length})`);
     
     const auth = new google.auth.GoogleAuth({
       credentials: {
@@ -27,11 +52,8 @@ const getAuth = async () => {
     return google.sheets({ version: 'v4', auth });
   }
 
-  // Strictly enforce service account credentials for reading private sheets.
-  // We MUST NOT fall back to GOOGLE_API_KEY because an API key cannot read private sheets
-  // and will result in an obscure 403 Access Denied error that is hard to debug.
-  console.error('[GoogleAuth] No valid service account credentials found in environment variables.');
-  const error = new Error('No Google Service Account (GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY) found. API Key cannot be used for private sheets.');
+  console.error('[GoogleAuth] No valid service account or Workload Identity credentials found in environment variables.');
+  const error = new Error('No Google authentication configured (GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_CLIENT_EMAIL/GOOGLE_PRIVATE_KEY required). API Key cannot be used for private sheets.');
   error.code = 'GOOGLE_SHEET_AUTH_NOT_CONFIGURED';
   throw error;
 };

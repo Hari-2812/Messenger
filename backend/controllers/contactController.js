@@ -441,12 +441,104 @@ const importContacts = async (req, res) => {
 };
 
 module.exports = {
+// @desc    Bulk import contacts directly from JSON (Pasted Name/Email)
+// @route   POST /api/contacts/bulk-import
+const bulkImportContacts = async (req, res) => {
+  const { contacts } = req.body;
+
+  if (!Array.isArray(contacts) || contacts.length === 0) {
+    return res.status(400).json({ 
+      success: false, 
+      code: 'CONTACT_IMPORT_EMPTY',
+      message: 'No contacts were provided.' 
+    });
+  }
+
+  let imported = 0;
+  let updated = 0;
+  let invalid = 0;
+  let duplicatesSkipped = 0;
+
+  const validOperations = [];
+  const processedEmails = new Set();
+
+  for (const row of contacts) {
+    const rawEmail = row.email ? row.email.toString().trim().toLowerCase() : '';
+    const name = row.name ? row.name.toString().trim() : '';
+
+    if (!rawEmail || !validator.isEmail(rawEmail)) {
+      invalid++;
+      continue;
+    }
+
+    if (processedEmails.has(rawEmail)) {
+      duplicatesSkipped++;
+      continue;
+    }
+    processedEmails.add(rawEmail);
+
+    validOperations.push({
+      updateOne: {
+        filter: { email: rawEmail },
+        update: {
+          $set: {
+            name: name || rawEmail.split('@')[0],
+            email: rawEmail,
+            source: 'Manual Import'
+          },
+          // We set phone to a placeholder if not present, because the schema previously required unique phone numbers or we just let it be empty since schema allows empty. Wait, the existing schema defaults phone to empty string but has an index on it. Let's not set a placeholder unless required.
+        },
+        upsert: true
+      }
+    });
+  }
+
+  if (validOperations.length === 0) {
+    return res.status(400).json({ 
+      success: false, 
+      code: 'CONTACT_IMPORT_FAILED',
+      message: 'No valid contacts found to import.' 
+    });
+  }
+
+  try {
+    const result = await Contact.bulkWrite(validOperations);
+    imported = result.upsertedCount || 0;
+    updated = result.modifiedCount || 0;
+    
+    // In bulkWrite, matchedCount includes both modified and unmodified matches. 
+    // If a document matched but wasn't modified (e.g. data is exactly the same), 
+    // it won't be in modifiedCount. So technically "updated" might be lower than actual matches.
+    const matchedButNotModified = (result.matchedCount || 0) - (result.modifiedCount || 0);
+    duplicatesSkipped += matchedButNotModified;
+
+    res.json({
+      success: true,
+      message: 'Bulk import completed',
+      total: contacts.length,
+      imported,
+      updated,
+      duplicatesSkipped,
+      invalid
+    });
+  } catch (error) {
+    console.error('[BulkImport] Error:', error);
+    res.status(500).json({ 
+      success: false, 
+      code: 'CONTACT_IMPORT_FAILED',
+      message: 'Unable to import contacts: ' + error.message 
+    });
+  }
+};
+
+module.exports = {
   getContacts,
   createContact,
   updateContact,
   deleteContact,
   bulkDeleteContacts,
   importContacts,
+  bulkImportContacts,
   syncAllContacts,
   retrySyncContact,
 };

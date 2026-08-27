@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
-import { contactsAPI, googleSheetsAPI } from '../services/api';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { contactsAPI } from '../services/api';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -11,7 +11,12 @@ const Contacts = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
-  const [syncing, setSyncing] = useState(false);
+
+  // Bulk Import state
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importPreview, setImportPreview] = useState(null);
+  const [importing, setImporting] = useState(false);
 
   const fetchContacts = useCallback(async (p = 1, q = '') => {
     setLoading(true);
@@ -56,33 +61,105 @@ const Contacts = () => {
     fetchContacts(newPage, search);
   };
 
-  const handleSyncSheet = async () => {
-    setSyncing(true);
-    const loadingToast = toast.loading('Syncing with Google Sheets...');
+  // Bulk Import Logic
+  const handlePreviewImport = () => {
+    if (!importText.trim()) {
+      toast.error('Please paste some contacts first');
+      return;
+    }
+
+    const rows = importText.split('\n').filter(r => r.trim());
+    const previewData = [];
+    let validCount = 0;
+    let invalidCount = 0;
+
+    rows.forEach(row => {
+      // detect delimiter: comma or tab
+      const delimiter = row.includes('\t') ? '\t' : (row.includes(',') ? ',' : (row.includes(';') ? ';' : null));
+      let name = '';
+      let email = '';
+
+      if (delimiter) {
+        const parts = row.split(delimiter);
+        if (parts.length >= 2) {
+          name = parts[0].trim();
+          email = parts[1].trim();
+        } else if (parts.length === 1 && parts[0].includes('@')) {
+          email = parts[0].trim();
+          name = email.split('@')[0];
+        }
+      } else {
+        // try space separated if exactly two words and one is email
+        const parts = row.split(' ').filter(p => p.trim());
+        if (parts.length === 2 && parts[1].includes('@')) {
+          name = parts[0].trim();
+          email = parts[1].trim();
+        } else {
+          // just assume the whole row might be an email or Name Email
+          const emailMatch = row.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi);
+          if (emailMatch) {
+            email = emailMatch[0];
+            name = row.replace(email, '').trim() || email.split('@')[0];
+          }
+        }
+      }
+
+      const isValidEmail = email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      
+      if (isValidEmail) validCount++;
+      else invalidCount++;
+
+      previewData.push({
+        name,
+        email,
+        isValid: !!isValidEmail
+      });
+    });
+
+    setImportPreview({
+      rows: previewData,
+      valid: validCount,
+      invalid: invalidCount,
+      total: rows.length
+    });
+  };
+
+  const handleImportSubmit = async () => {
+    if (!importPreview || importPreview.valid === 0) {
+      toast.error('No valid contacts to import');
+      return;
+    }
+
+    setImporting(true);
+    const loadingToast = toast.loading('Importing contacts...');
+    
     try {
-      const res = await googleSheetsAPI.syncCampaignSheet();
+      const validContacts = importPreview.rows
+        .filter(r => r.isValid)
+        .map(r => ({ name: r.name, email: r.email }));
+
+      const res = await contactsAPI.bulkImport({ contacts: validContacts });
+      
       if (res.data.success) {
-        const d = res.data;
-        toast.success(`Sync Complete: ${d.newContacts} New, ${d.updatedContacts} Updated, ${d.duplicates} Skipped, ${d.invalidRows} Invalid.`, {
+        toast.success(`Import complete: ${res.data.imported} new, ${res.data.updated} updated, ${res.data.duplicatesSkipped} duplicates skipped.`, {
           id: loadingToast,
           duration: 5000
         });
-        // Auto refresh
+        setShowBulkImport(false);
+        setImportText('');
+        setImportPreview(null);
         setPage(1);
         fetchContacts(1, search);
       } else {
-        const errorMsg = res.data.message || 'Sync failed';
-        const codeStr = res.data.code ? ` (${res.data.code})` : '';
-        toast.error(`${errorMsg}${codeStr}`, { id: loadingToast, duration: 6000 });
+        toast.error(res.data.message || 'Import failed', { id: loadingToast });
       }
     } catch (err) {
-      const errorMsg = err.response?.data?.message || err.message || 'Sync failed';
-      const codeStr = err.response?.data?.code ? ` (${err.response?.data?.code})` : '';
-      toast.error(`${errorMsg}${codeStr}`, { id: loadingToast, duration: 6000 });
+      toast.error(err.response?.data?.message || 'Failed to import contacts', { id: loadingToast });
     } finally {
-      setSyncing(false);
+      setImporting(false);
     }
   };
+
 
   const getStatusBadge = (status) => {
     switch (status?.toLowerCase()) {
@@ -120,23 +197,15 @@ const Contacts = () => {
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-text">Contacts</h2>
           <p className="text-base text-text-muted mt-1 font-medium">
-            Manage your email campaign recipients.
+            Manage your CRM contacts.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={handleSyncSheet}
-            disabled={syncing}
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-secondary px-5 py-2.5 text-sm font-bold text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+            onClick={() => setShowBulkImport(true)}
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-secondary px-5 py-2.5 text-sm font-bold text-white shadow-lg hover:shadow-xl transition-all"
           >
-            {syncing ? (
-              <>
-                <div className="spinner w-4 h-4 border-white border-t-transparent" />
-                Syncing...
-              </>
-            ) : (
-              '📁 Sync Email Campaign Sheet'
-            )}
+            📋 Bulk Import
           </button>
         </div>
       </div>
@@ -175,14 +244,13 @@ const Contacts = () => {
           <div className="text-6xl mb-4 opacity-80">👥</div>
           <h4 className="text-xl font-bold text-text">No contacts yet.</h4>
           <p className="text-base text-text-muted max-w-sm mt-2 font-medium mb-6">
-            Import contacts from Google Sheets to start your email campaigns.
+            Import contacts to start your email campaigns.
           </p>
           <button
-            onClick={handleSyncSheet}
-            disabled={syncing}
-            className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-primary-hover disabled:opacity-70"
+            onClick={() => setShowBulkImport(true)}
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-primary-hover"
           >
-            {syncing ? 'Syncing...' : 'Sync Email Campaign Sheet'}
+            Bulk Import
           </button>
         </div>
       ) : (
@@ -193,9 +261,7 @@ const Contacts = () => {
                 <thead className="bg-background/80 border-b border-border">
                   <tr>
                     <th className="text-left py-4 px-5 font-bold text-text-muted">Contact</th>
-                    <th className="text-left py-4 px-4 font-bold text-text-muted">Company</th>
-                    <th className="text-left py-4 px-4 font-bold text-text-muted">Industry</th>
-                    <th className="text-left py-4 px-4 font-bold text-text-muted">Location</th>
+                    <th className="text-left py-4 px-4 font-bold text-text-muted">Source</th>
                     <th className="text-left py-4 px-4 font-bold text-text-muted">Status</th>
                     <th className="text-left py-4 px-4 font-bold text-text-muted">Added On</th>
                   </tr>
@@ -214,13 +280,7 @@ const Contacts = () => {
                         {contact.phone && <div className="text-xs text-text-muted font-mono">{contact.phone}</div>}
                       </td>
                       <td className="py-4 px-4 text-text-muted font-medium">
-                        {contact.companyName || '-'}
-                      </td>
-                      <td className="py-4 px-4 text-text-muted font-medium">
-                        {contact.industry || '-'}
-                      </td>
-                      <td className="py-4 px-4 text-text-muted font-medium">
-                        {contact.location || '-'}
+                        {contact.source || 'CRM'}
                       </td>
                       <td className="py-4 px-4">
                         {getStatusBadge(contact.status || 'New')}
@@ -263,8 +323,128 @@ const Contacts = () => {
           )}
         </>
       )}
+
+      {/* Bulk Import Modal */}
+      <AnimatePresence>
+        {showBulkImport && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.95 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.95 }}
+              className="bg-card w-full max-w-3xl rounded-3xl border border-border shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-border flex justify-between items-center bg-background/50">
+                <h3 className="text-2xl font-bold text-text">Bulk Import Contacts</h3>
+                <button onClick={() => { setShowBulkImport(false); setImportPreview(null); setImportText(''); }} className="text-text-muted hover:text-text text-xl">&times;</button>
+              </div>
+
+              <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
+                {!importPreview ? (
+                  <>
+                    <p className="text-sm text-text-muted mb-4">Paste your contact list below using Name and Email. (Comma or Tab separated)</p>
+                    <div className="mb-4 bg-background border border-border p-3 rounded-xl">
+                      <p className="text-xs font-mono text-text-muted">Example:</p>
+                      <p className="text-sm font-mono text-text mt-1">John Doe, john@example.com</p>
+                      <p className="text-sm font-mono text-text">Jane Smith  jane@example.com</p>
+                    </div>
+                    <textarea 
+                      value={importText}
+                      onChange={(e) => setImportText(e.target.value)}
+                      placeholder="Paste contacts here..."
+                      className="w-full h-64 bg-background border border-border rounded-xl p-4 text-text font-mono text-sm focus:outline-none focus:border-primary resize-none custom-scrollbar"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="font-bold text-text">Import Preview</h4>
+                      <div className="text-sm">
+                        <span className="text-text-muted">Total: {importPreview.total} | </span>
+                        <span className="text-emerald-500 font-bold">Valid: {importPreview.valid}</span>
+                        <span className="text-text-muted"> | </span>
+                        <span className="text-red-500 font-bold">Invalid: {importPreview.invalid}</span>
+                      </div>
+                    </div>
+                    <div className="border border-border rounded-xl overflow-hidden bg-background">
+                      <div className="max-h-64 overflow-y-auto custom-scrollbar">
+                        <table className="w-full text-sm text-left">
+                          <thead className="bg-card border-b border-border sticky top-0">
+                            <tr>
+                              <th className="p-3 font-bold text-text-muted">Name</th>
+                              <th className="p-3 font-bold text-text-muted">Email</th>
+                              <th className="p-3 font-bold text-text-muted">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border">
+                            {importPreview.rows.slice(0, 100).map((r, i) => (
+                              <tr key={i} className="hover:bg-card/50">
+                                <td className="p-3 text-text">{r.name || '-'}</td>
+                                <td className="p-3 text-text font-mono">{r.email || '-'}</td>
+                                <td className="p-3">
+                                  {r.isValid 
+                                    ? <span className="text-emerald-500 text-xs font-bold bg-emerald-500/10 px-2 py-1 rounded">Valid</span>
+                                    : <span className="text-red-500 text-xs font-bold bg-red-500/10 px-2 py-1 rounded">Invalid</span>
+                                  }
+                                </td>
+                              </tr>
+                            ))}
+                            {importPreview.rows.length > 100 && (
+                              <tr>
+                                <td colSpan="3" className="p-3 text-center text-text-muted text-xs italic">
+                                  ...and {importPreview.rows.length - 100} more rows
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="p-6 border-t border-border bg-background/50 flex justify-end gap-3">
+                <button 
+                  onClick={() => {
+                    if (importPreview) setImportPreview(null);
+                    else setShowBulkImport(false);
+                  }} 
+                  className="px-5 py-2.5 rounded-xl font-bold text-text-muted hover:text-text hover:bg-card transition-colors"
+                >
+                  {importPreview ? 'Back' : 'Cancel'}
+                </button>
+                
+                {!importPreview ? (
+                  <button 
+                    onClick={handlePreviewImport}
+                    className="px-6 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow-lg transition-colors"
+                  >
+                    Preview Import
+                  </button>
+                ) : (
+                  <button 
+                    onClick={handleImportSubmit}
+                    disabled={importing || importPreview.valid === 0}
+                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg transition-colors disabled:opacity-50"
+                  >
+                    {importing ? 'Importing...' : `Import ${importPreview.valid} Contacts`}
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </motion.div>
   );
 };
 
 export default Contacts;
+

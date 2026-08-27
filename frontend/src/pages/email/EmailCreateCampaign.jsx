@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { emailTemplatesAPI, emailCampaignsAPI, settingsAPI, contactsAPI, googleSheetsAPI } from '../../services/api';
+import { emailTemplatesAPI, emailCampaignsAPI, settingsAPI, contactsAPI } from '../../services/api';
 
 /* ── Wizard Steps Enum ──────────────────────────────────────────────────────── */
 const STEPS = {
@@ -118,16 +118,11 @@ export default function EmailCreateCampaign() {
     try {
       const res = await contactsAPI.getAll({ page: 1, limit: 5000 });
       const data = res.data.contacts || res.data || [];
-      // Only keep contacts that were synced from the sheet
-      const valid = data.filter(c => c.email && c.email.includes('@') && c.source === 'Email Campaign Sheet');
+      const valid = data.filter(c => c.email && c.email.includes('@'));
       setContacts(valid);
       setFilteredContacts(valid);
-      // If we are loading previously synced contacts, mark them as stale
-      if (valid.length > 0) {
-        setSyncResult(prev => prev ? prev : { isStale: true });
-      }
     } catch (err) {
-      showToast('Failed to load previous contacts', 'error');
+      showToast('Failed to load contacts', 'error');
     } finally {
       setFetchingContacts(false);
     }
@@ -149,33 +144,6 @@ export default function EmailCreateCampaign() {
       setFilteredContacts(contacts);
     }
   }, [search, contacts]);
-
-  const handleSyncSheet = async () => {
-    setSyncing(true);
-    setSyncResult(null);
-    try {
-      const res = await googleSheetsAPI.syncCampaignSheet();
-      if (res.data.success) {
-        setSyncResult({ ...res.data, isStale: false });
-        showToast('Google Sheet synced successfully');
-        
-        // Use the returned contacts directly instead of refetching all CRM contacts
-        const valid = res.data.contacts.filter(c => c.email && c.email.includes('@'));
-        setContacts(valid);
-        setFilteredContacts(valid);
-      } else {
-        setSyncResult({ error: res.data.message || 'Sync failed', code: res.data.code });
-        showToast(res.data.message || 'Sync failed', 'error');
-      }
-    } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Sync failed';
-      const code = err.response?.data?.code || 'UNKNOWN_ERROR';
-      setSyncResult({ error: msg, code });
-      showToast(msg, 'error');
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   const toggleContactSelection = (id) => {
     const newSelection = new Set(selectedContactIds);
@@ -353,42 +321,9 @@ export default function EmailCreateCampaign() {
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-white/10 pb-6">
                 <div>
                   <h2 className="text-2xl font-bold text-white">Campaign Contacts</h2>
-                  <p className="text-slate-400 mt-1">Use contacts from your existing Email Campaign Google Sheet.</p>
+                  <p className="text-slate-400 mt-1">Select from your CRM contacts to include in this campaign.</p>
                 </div>
-                <button
-                  onClick={handleSyncSheet}
-                  disabled={syncing}
-                  className="px-6 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl transition-colors flex items-center gap-2 disabled:opacity-50"
-                >
-                  {syncing ? (
-                    <>
-                      <div className="spinner w-4 h-4 border-white border-t-transparent" />
-                      Syncing...
-                    </>
-                  ) : (
-                    '📁 Sync from Google Sheet'
-                  )}
-                </button>
               </div>
-
-              {syncResult && !syncResult.error && !syncResult.isStale && (
-                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 text-emerald-300 text-sm">
-                  ✓ Google Sheet synced successfully. Found {syncResult.totalRows} rows: {syncResult.newContacts} New, {syncResult.updatedContacts} Updated, {syncResult.duplicates} Duplicates Skipped, {syncResult.invalidRows} Invalid.
-                </div>
-              )}
-
-              {syncResult && !syncResult.error && syncResult.isStale && contacts.length > 0 && (
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 text-amber-300 text-sm">
-                  ⚠ Displaying previously synced contacts. Click "Sync from Google Sheet" to fetch latest data.
-                </div>
-              )}
-
-              {syncResult && syncResult.error && (
-                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-300 text-sm">
-                  <div className="font-bold mb-1">Google Sheet sync failed ({syncResult.code})</div>
-                  {syncResult.error}
-                </div>
-              )}
 
               <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
                 <div className="p-4 border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -413,7 +348,7 @@ export default function EmailCreateCampaign() {
                   {fetchingContacts ? (
                     <div className="p-8 text-center text-slate-400">Loading contacts...</div>
                   ) : filteredContacts.length === 0 ? (
-                    <div className="p-8 text-center text-slate-400">No valid contacts found. Sync from your Google Sheet.</div>
+                    <div className="p-8 text-center text-slate-400">No valid contacts found. Please add contacts to your CRM.</div>
                   ) : (
                     <ul className="divide-y divide-white/5">
                       {filteredContacts.map(c => (
