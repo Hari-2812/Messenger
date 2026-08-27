@@ -10,6 +10,16 @@ const DAILY_LIMIT = 300;
 const processEmailQueue = async () => {
   console.log('--- Starting Email Queue Processor ---');
   try {
+    // 0. Recover stuck emails
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    const recovered = await EmailLog.updateMany(
+      { status: 'sending', updatedAt: { $lt: tenMinutesAgo } },
+      { $set: { status: 'pending' }, $inc: { retryCount: 1 } }
+    );
+    if (recovered.modifiedCount > 0) {
+      console.log(`[Queue] Recovered ${recovered.modifiedCount} stuck emails.`);
+    }
+
     // 1. Calculate how many emails have been sent today
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -43,9 +53,24 @@ const processEmailQueue = async () => {
 
     console.log(`Processing ${pendingEmails.length} pending emails...`);
 
+    // We'll keep track of campaigns touched to update their status later
+    const touchedCampaignIds = new Set();
+
     // 3. Process each email
-    for (const log of pendingEmails) {
+    for (const pendingDoc of pendingEmails) {
       try {
+        // ATOMIC CLAIM: Lock the job so no other worker can process it
+        const log = await EmailLog.findOneAndUpdate(
+          { _id: pendingDoc._id, status: 'pending' },
+          { $set: { status: 'sending', updatedAt: new Date() } },
+          { new: true }
+        ).populate('campaignId');
+
+        if (!log) {
+          // Another worker claimed it
+          continue;
+        }
+
         console.log(`[Queue] Processing log ${log._id} for recipient ${log.recipientEmail}`);
         
         const campaign = log.campaignId;
@@ -56,6 +81,8 @@ const processEmailQueue = async () => {
           await log.save();
           continue;
         }
+
+        touchedCampaignIds.add(campaign._id.toString());
 
         // Process template variables
         let content = campaign.htmlContent;
@@ -72,23 +99,17 @@ const processEmailQueue = async () => {
           content = content.replace(regex, value);
         }
 
-        // Send Email
-        log.status = 'sending';
-        await log.save();
-
-        const attachments = campaign.attachmentUrl ? [
-          {
-            url: campaign.attachmentUrl,
-            name: campaign.attachmentUrl.split('/').pop()
-          }
-        ] : [];
-
         console.log(`[Queue] Calling Brevo sendEmail for ${log.recipientEmail}...`);
         const result = await sendEmail({
           to: log.recipientEmail,
           subject: campaign.subject,
           htmlContent: content,
-          attachment: attachments
+          attachment: campaign.attachmentUrl ? [
+            {
+              url: campaign.attachmentUrl,
+              name: campaign.attachmentUrl.split('/').pop()
+            }
+          ] : []
         });
 
         if (!result.success) {
@@ -108,28 +129,60 @@ const processEmailQueue = async () => {
         });
 
       } catch (err) {
-        console.error(`[Queue] Failed to send email to ${log.recipientEmail}:`);
+        // log might not be defined if claim failed, but it's safe since it's the pendingDoc context
+        // we need to refetch to update it
+        const logToUpdate = await EmailLog.findById(pendingDoc._id);
+        if (!logToUpdate) continue;
+        
+        console.error(`[Queue] Failed to send email to ${logToUpdate.recipientEmail}:`);
         console.error(`- Error message: ${err.message}`);
         if (err.response) {
           console.error(`- Status: ${err.response.status}`);
           console.error(`- Data: ${JSON.stringify(err.response.data)}`);
         }
         
-        log.status = 'failed';
-        log.failedReason = err.message;
-        log.retryCount += 1;
+        logToUpdate.failedReason = err.message;
+        logToUpdate.retryCount = (logToUpdate.retryCount || 0) + 1;
         
         // If it's a retryable error and retryCount < 3, set back to Pending
-        if (log.retryCount < 3) {
-           log.status = 'pending';
+        if (logToUpdate.retryCount < 3) {
+           logToUpdate.status = 'pending';
+           await logToUpdate.save();
+        } else {
+           // Permanent failure
+           logToUpdate.status = 'failed';
+           await logToUpdate.save();
+           
+           if (logToUpdate.campaignId) {
+             touchedCampaignIds.add(logToUpdate.campaignId.toString());
+             // Only increment permanent failure count
+             await EmailCampaign.findByIdAndUpdate(logToUpdate.campaignId, {
+               $inc: { 'stats.failed': 1 }
+             });
+           }
         }
-        
-        await log.save();
+      }
+    }
 
-        // Update failed stats
-        await EmailCampaign.findByIdAndUpdate(log.campaignId?._id, {
-          $inc: { 'stats.failed': 1 }
+    // 4. Update status for all touched campaigns
+    for (const campaignIdStr of touchedCampaignIds) {
+      const remainingCount = await EmailLog.countDocuments({
+        campaignId: campaignIdStr,
+        status: { $in: ['pending', 'sending'] }
+      });
+      
+      if (remainingCount === 0) {
+        // Check if there are any failures to determine Completed vs Completed_with_errors
+        const failedCount = await EmailLog.countDocuments({
+           campaignId: campaignIdStr,
+           status: 'failed'
         });
+        
+        const newStatus = failedCount > 0 ? 'Completed_with_errors' : 'Completed';
+        await EmailCampaign.findByIdAndUpdate(campaignIdStr, { status: newStatus });
+        console.log(`[Queue] Campaign ${campaignIdStr} updated to status: ${newStatus}`);
+      } else {
+        await EmailCampaign.findByIdAndUpdate(campaignIdStr, { status: 'Active' });
       }
     }
 

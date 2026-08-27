@@ -8,7 +8,7 @@ const emailLogSchema = new mongoose.Schema(
     recipientEmail: { type: String, required: true },
     status: {
       type: String,
-      enum: ['pending', 'sent', 'delivered', 'failed', 'bounce', 'opened', 'clicked'],
+      enum: ['pending', 'sending', 'sent', 'delivered', 'failed', 'bounce', 'opened', 'clicked'],
       default: 'pending',
     },
     messageId: { type: String, default: null }, // From Brevo

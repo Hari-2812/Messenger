@@ -50,20 +50,11 @@ const getDashboardStats = async (req, res) => {
       sentAt: { $gte: startOfDay, $lte: endOfDay } 
     });
 
-    // Aggregate stats from campaigns
-    const statsAggr = await EmailCampaign.aggregate([
-      {
-        $group: {
-          _id: null,
-          delivered: { $sum: '$stats.delivered' },
-          failed: { $sum: '$stats.failed' },
-          pending: { $sum: { $subtract: ['$stats.totalContacts', { $add: ['$stats.delivered', '$stats.failed', '$stats.bounce'] }] } },
-        }
-      }
-    ]);
+    // Aggregate stats directly from EmailLog
+    const delivered = await EmailLog.countDocuments({ status: { $in: ['sent', 'delivered'] } });
+    const failed = await EmailLog.countDocuments({ status: { $in: ['failed', 'bounce'] } });
+    const pending = await EmailLog.countDocuments({ status: { $in: ['pending', 'sending'] } });
 
-    const stats = statsAggr[0] || { delivered: 0, failed: 0, pending: 0 };
-    
     // Recent campaigns
     const recentCampaigns = await EmailCampaign.find().sort({ createdAt: -1 }).limit(5);
 
@@ -71,9 +62,9 @@ const getDashboardStats = async (req, res) => {
       totalContacts,
       totalCampaigns,
       emailsSentToday,
-      delivered: stats.delivered,
-      failed: stats.failed,
-      pending: stats.pending > 0 ? stats.pending : 0,
+      delivered,
+      failed,
+      pending,
       recentCampaigns
     });
   } catch (error) {
