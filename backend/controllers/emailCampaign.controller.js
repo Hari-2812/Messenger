@@ -88,21 +88,39 @@ const createCampaign = async (req, res) => {
   try {
     const { name, subject, htmlContent, templateId, scheduledAt, isDraft, dailyLimit, googleSheetSource } = req.body;
     
-    // We assume the user can optionally pass recipients, or we fetch all contacts with email
+    // We assume the user can optionally pass recipients
     let { recipients } = req.body; 
     
     if (typeof recipients === 'string') {
       try { recipients = JSON.parse(recipients); } catch(e) {}
     }
     
-    // If no specific recipients, get all contacts with an email address
+    // If no specific recipients, get all active contacts with an email address
     if (!recipients || recipients.length === 0) {
-      const contacts = await Contact.find({ email: { $ne: '' }, isDeleted: { $ne: true } }).select('_id');
-      recipients = contacts.map(c => c._id);
+      const contacts = await Contact.find({ 
+        email: { $ne: '' }, 
+        isDeleted: { $ne: true },
+        status: { $ne: 'Unsubscribed' }
+      }).select('_id');
+      recipients = contacts.map(c => c._id.toString());
     }
 
-    if (recipients.length === 0) {
-      return res.status(400).json({ message: 'No recipients found with valid email addresses.' });
+    // Deduplicate recipient IDs to prevent sending twice
+    recipients = [...new Set(recipients.map(r => r.toString()))];
+
+    // Filter recipients rigorously from the DB to skip Unsubscribed and Invalid emails
+    const validContacts = await Contact.find({
+      _id: { $in: recipients },
+      email: { $ne: '' },
+      isDeleted: { $ne: true },
+      status: { $ne: 'Unsubscribed' }
+    }).select('_id');
+
+    const validRecipientIds = validContacts.map(c => c._id.toString());
+    const skippedCount = recipients.length - validRecipientIds.length;
+
+    if (validRecipientIds.length === 0) {
+      return res.status(400).json({ message: 'No valid recipients found. They might be unsubscribed or missing email addresses.' });
     }
 
     const campaign = new EmailCampaign({
@@ -110,14 +128,14 @@ const createCampaign = async (req, res) => {
       subject,
       htmlContent,
       templateId: templateId || null,
-      recipients,
+      recipients: validRecipientIds,
       dailyLimit: dailyLimit || 100,
       googleSheetSource: googleSheetSource || {},
       scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
       status: isDraft ? 'Draft' : (scheduledAt ? 'Scheduled' : 'Active'),
       stats: {
-        totalContacts: recipients.length,
-        pending: recipients.length
+        totalContacts: validRecipientIds.length,
+        pending: validRecipientIds.length
       },
       createdBy: req.user?._id
     });
@@ -127,16 +145,23 @@ const createCampaign = async (req, res) => {
     if (!isDraft && !scheduledAt) {
       // Enqueue to CampaignRecipient
       const CampaignRecipient = require('../models/CampaignRecipient');
-      const recipientsToInsert = recipients.map(contactId => ({
+      const recipientsToInsert = validRecipientIds.map(contactId => ({
         campaignId: campaign._id,
         contactId: contactId,
         status: 'Pending'
       }));
 
-      await CampaignRecipient.insertMany(recipientsToInsert);
+      await CampaignRecipient.insertMany(recipientsToInsert, { ordered: false });
     }
 
-    res.status(201).json({ message: 'Campaign created successfully', campaign });
+    res.status(201).json({ 
+      message: 'Campaign created successfully', 
+      campaign,
+      stats: {
+        queued: validRecipientIds.length,
+        skipped: skippedCount
+      }
+    });
   } catch (error) {
     console.error('Error creating email campaign:', error);
     res.status(500).json({ message: 'Server error: ' + error.message });

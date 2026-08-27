@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { emailTemplatesAPI, emailCampaignsAPI, settingsAPI, contactsAPI } from '../../services/api';
+import { emailTemplatesAPI, emailCampaignsAPI, settingsAPI, contactsAPI, googleSheetsAPI } from '../../services/api';
 
 /* ── Wizard Steps Enum ──────────────────────────────────────────────────────── */
 const STEPS = {
@@ -70,14 +70,18 @@ export default function EmailCreateCampaign() {
   const [campaignSubject, setCampaignSubject] = useState('');
   
   // Contacts
-  const [file, setFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [importResult, setImportResult] = useState(null);
-  const [importedContactIds, setImportedContactIds] = useState([]);
+  const [contacts, setContacts] = useState([]);
+  const [filteredContacts, setFilteredContacts] = useState([]);
+  const [selectedContactIds, setSelectedContactIds] = useState(new Set());
+  const [search, setSearch] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
+  const [fetchingContacts, setFetchingContacts] = useState(false);
 
   // Submission
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+  const [submitResult, setSubmitResult] = useState(null);
 
   // Fetch initial data
   useEffect(() => {
@@ -109,35 +113,76 @@ export default function EmailCreateCampaign() {
     }
   };
 
-  // Handlers
-  const handleFileDrop = (e) => {
-    e.preventDefault();
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile) setFile(droppedFile);
-  };
-  
-  const handleFileChange = (e) => {
-    if (e.target.files[0]) setFile(e.target.files[0]);
+  const fetchCRMContacts = async () => {
+    setFetchingContacts(true);
+    try {
+      // Fetch up to 5000 contacts for selection
+      const res = await contactsAPI.getAll({ page: 1, limit: 5000 });
+      const data = res.data.contacts || res.data || [];
+      // Filter out empty emails
+      const valid = data.filter(c => c.email && c.email.includes('@'));
+      setContacts(valid);
+      setFilteredContacts(valid);
+    } catch (err) {
+      showToast('Failed to load contacts', 'error');
+    } finally {
+      setFetchingContacts(false);
+    }
   };
 
-  const uploadFile = async () => {
-    if (!file) return;
-    setUploading(true);
-    try {
-      // The backend /contacts/import expects a form-data "file"
-      const res = await contactsAPI.importCSV(file);
-      setImportResult(res.data);
-      // Wait, /contacts/import might not return the IDs of imported contacts immediately if done via queue.
-      // For now, we will fetch recent contacts or let backend handle all if recipients array is empty.
-      // But to be precise, let's assume we proceed and just tell backend to target all or rely on recent.
-      // For this workflow, if we don't have IDs, we can pass null to recipients, meaning "all valid emails".
-      // Let's set a flag that we have imported.
-    } catch (err) {
-      console.error(err);
-      alert('File upload failed: ' + (err.response?.data?.message || err.message));
-    } finally {
-      setUploading(false);
+  useEffect(() => {
+    if (step === STEPS.CONTACTS && contacts.length === 0 && !fetchingContacts) {
+      fetchCRMContacts();
     }
+  }, [step]);
+
+  useEffect(() => {
+    if (search.trim()) {
+      setFilteredContacts(contacts.filter(c => 
+        c.name?.toLowerCase().includes(search.toLowerCase()) || 
+        c.email?.toLowerCase().includes(search.toLowerCase())
+      ));
+    } else {
+      setFilteredContacts(contacts);
+    }
+  }, [search, contacts]);
+
+  const handleSyncSheet = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await googleSheetsAPI.syncCampaignSheet();
+      if (res.data.success) {
+        setSyncResult(res.data);
+        showToast('Google Sheet synced successfully');
+        await fetchCRMContacts();
+      } else {
+        showToast(res.data.message || 'Sync failed', 'error');
+      }
+    } catch (err) {
+      showToast(err.response?.data?.message || err.message || 'Sync failed', 'error');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const toggleContactSelection = (id) => {
+    const newSelection = new Set(selectedContactIds);
+    if (newSelection.has(id)) newSelection.delete(id);
+    else newSelection.add(id);
+    setSelectedContactIds(newSelection);
+  };
+
+  const selectAllFiltered = () => {
+    const newSelection = new Set(selectedContactIds);
+    filteredContacts.forEach(c => newSelection.add(c._id));
+    setSelectedContactIds(newSelection);
+  };
+
+  const unselectAllFiltered = () => {
+    const newSelection = new Set(selectedContactIds);
+    filteredContacts.forEach(c => newSelection.delete(c._id));
+    setSelectedContactIds(newSelection);
   };
 
   const handleNext = async () => {
@@ -150,13 +195,9 @@ export default function EmailCreateCampaign() {
       if (!selectedSender) return alert('Select a sender');
     }
     if (step === STEPS.CONTACTS) {
-      if (file && !importResult) {
-        await uploadFile();
-      } else if (!file) {
-        // If they skip file upload, we'll send to all existing contacts.
-        const confirm = window.confirm("No file uploaded. Proceed with ALL existing contacts in the CRM?");
+      if (selectedContactIds.size === 0) {
+        const confirm = window.confirm("No contacts selected. Proceed with ALL active CRM contacts?");
         if (!confirm) return;
-        setImportResult({ message: 'Targeting all existing contacts', total: 'All' });
       }
     }
     
@@ -167,6 +208,8 @@ export default function EmailCreateCampaign() {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      const dailyLimitVal = document.getElementById('dailyLimit')?.value || 100;
+      
       const payload = {
         name: campaignName,
         subject: campaignSubject || selectedTemplate.subject,
@@ -174,13 +217,17 @@ export default function EmailCreateCampaign() {
         senderEmail: selectedSender.email,
         templateId: selectedTemplate._id,
         htmlContent: selectedTemplate.htmlContent,
-        recipients: [] // Empty array tells backend to fetch all valid email contacts
+        recipients: Array.from(selectedContactIds),
+        dailyLimit: parseInt(dailyLimitVal, 10)
       };
 
-      await emailCampaignsAPI.create(payload);
+      const res = await emailCampaignsAPI.create(payload);
+      setSubmitResult(res.data.stats || { queued: res.data.campaign?.stats?.totalContacts || 0, skipped: 0 });
+      setStep(STEPS.CONFIRM + 1); // Move to a final success step implicitly
       
-      // Success! Redirect to history
-      window.location.href = '/email-campaigns';
+      setTimeout(() => {
+        window.location.href = '/email-campaigns';
+      }, 3000);
     } catch (err) {
       setSubmitError(err.response?.data?.message || err.message);
       setSubmitting(false);
@@ -291,29 +338,79 @@ export default function EmailCreateCampaign() {
 
           {/* STEP 3: CONTACTS */}
           {step === STEPS.CONTACTS && (
-            <motion.div key="step3" variants={slideVariants} initial="initial" animate="enter" exit="exit" transition={{ duration: 0.3 }}>
-              <h2 className="text-2xl font-bold text-white mb-6">Step 3: Upload Contacts</h2>
-              <p className="text-slate-400 mb-6">Upload an Excel (.xlsx) or CSV file containing your contacts. We will automatically detect Name, Email, Phone, College, and Department.</p>
-              
-              <div 
-                onDragOver={e => e.preventDefault()}
-                onDrop={handleFileDrop}
-                className="border-2 border-dashed border-white/20 rounded-3xl p-12 text-center hover:border-[#F57C20]/50 transition-colors bg-white/5"
-              >
-                <div className="flex justify-center text-slate-400 mb-4"><Icons.Upload /></div>
-                <h3 className="text-xl font-bold text-white mb-2">{file ? file.name : "Drag & Drop your file here"}</h3>
-                <p className="text-slate-400 mb-6">or</p>
-                <label className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white font-medium rounded-xl cursor-pointer transition-colors">
-                  Browse Files
-                  <input type="file" accept=".csv, .xlsx, .xls" className="hidden" onChange={handleFileChange} />
-                </label>
+            <motion.div key="step3" variants={slideVariants} initial="initial" animate="enter" exit="exit" transition={{ duration: 0.3 }} className="space-y-6">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-white/10 pb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-white">Campaign Contacts</h2>
+                  <p className="text-slate-400 mt-1">Use contacts from your existing Email Campaign Google Sheet.</p>
+                </div>
+                <button
+                  onClick={handleSyncSheet}
+                  disabled={syncing}
+                  className="px-6 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {syncing ? (
+                    <>
+                      <div className="spinner w-4 h-4 border-white border-t-transparent" />
+                      Syncing...
+                    </>
+                  ) : (
+                    '📁 Sync from Google Sheet'
+                  )}
+                </button>
               </div>
-              
-              {file && (
-                <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-300 flex items-center gap-3">
-                  <Icons.Check /> File ready for import. Click Next to process.
+
+              {syncResult && (
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 text-emerald-300 text-sm">
+                  ✓ Google Sheet synced successfully. Found {syncResult.total} rows: {syncResult.imported} New, {syncResult.updated} Updated, {syncResult.invalid} Invalid.
                 </div>
               )}
+
+              <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+                <div className="p-4 border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <span className="text-slate-300 font-bold">{contacts.length} Contacts</span>
+                    <span className="text-[#F57C20] font-bold">{selectedContactIds.size} Selected</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text"
+                      placeholder="Search contacts..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="bg-[#374151] border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-[#F57C20]"
+                    />
+                    <button onClick={selectAllFiltered} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg text-white transition-colors">Select All</button>
+                    <button onClick={unselectAllFiltered} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg text-white transition-colors">Unselect All</button>
+                  </div>
+                </div>
+                
+                <div className="max-h-64 overflow-y-auto custom-scrollbar bg-[#1f2937]">
+                  {fetchingContacts ? (
+                    <div className="p-8 text-center text-slate-400">Loading contacts...</div>
+                  ) : filteredContacts.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400">No valid contacts found. Sync from your Google Sheet.</div>
+                  ) : (
+                    <ul className="divide-y divide-white/5">
+                      {filteredContacts.map(c => (
+                        <li key={c._id} className={`flex items-center gap-3 p-3 hover:bg-white/5 cursor-pointer transition-colors ${selectedContactIds.has(c._id) ? 'bg-white/5' : ''}`} onClick={() => toggleContactSelection(c._id)}>
+                          <input 
+                            type="checkbox" 
+                            checked={selectedContactIds.has(c._id)}
+                            onChange={() => {}}
+                            className="w-4 h-4 rounded border-gray-500 bg-gray-700 text-[#F57C20] focus:ring-[#F57C20]"
+                          />
+                          <div>
+                            <div className="text-white font-medium">{c.name || 'Unknown'}</div>
+                            <div className="text-slate-400 text-xs">{c.email} {c.companyName && `• ${c.companyName}`}</div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+
             </motion.div>
           )}
 
@@ -335,7 +432,7 @@ export default function EmailCreateCampaign() {
                       />
                     </div>
                     <div>
-                      <span className="text-slate-300">Total Contacts Target:</span> <span className="text-white font-bold ml-2">{importResult?.total || 'All CRM Contacts'}</span>
+                      <span className="text-slate-300">Total Contacts Target:</span> <span className="text-white font-bold ml-2">{selectedContactIds.size === 0 ? 'All CRM Contacts' : selectedContactIds.size}</span>
                     </div>
                   </div>
                 </div>
@@ -343,7 +440,6 @@ export default function EmailCreateCampaign() {
                 <div className="bg-[#1f2937] p-6 rounded-2xl border border-white/10 flex flex-col">
                   <h3 className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-4">Email Preview</h3>
                   <div className="flex-1 bg-white p-4 rounded-xl text-black overflow-y-auto max-h-60 text-sm">
-                    {/* Minimal variable replacement preview */}
                     {selectedTemplate ? (
                       <div dangerouslySetInnerHTML={{ 
                         __html: selectedTemplate.htmlContent
@@ -366,11 +462,11 @@ export default function EmailCreateCampaign() {
           {step === STEPS.CONFIRM && (
             <motion.div key="step5" variants={slideVariants} initial="initial" animate="enter" exit="exit" transition={{ duration: 0.3 }} className="text-center py-10">
               <div className="w-20 h-20 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Icons.Upload />
+                <Icons.Check />
               </div>
               <h2 className="text-3xl font-bold text-white mb-4">Ready to Activate!</h2>
               <p className="text-slate-400 max-w-md mx-auto mb-8">
-                Your campaign <strong>{campaignName}</strong> is ready. Clicking "Activate Campaign" will queue the emails. Google Apps Script will handle the automated dispatching based on your daily limit.
+                Your campaign <strong>{campaignName}</strong> is ready. Clicking "Activate Campaign" will queue the emails safely. Google Apps Script will handle the automated dispatching based on your daily limit. Duplicate and Unsubscribe protections are automatically enforced.
               </p>
               
               {submitError && (
@@ -381,6 +477,21 @@ export default function EmailCreateCampaign() {
             </motion.div>
           )}
 
+          {/* SUCCESS MESSAGE IMPLICIT STEP */}
+          {step === STEPS.CONFIRM + 1 && (
+            <motion.div key="step6" variants={slideVariants} initial="initial" animate="enter" exit="exit" transition={{ duration: 0.3 }} className="text-center py-10">
+              <div className="w-20 h-20 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Icons.Check />
+              </div>
+              <h2 className="text-3xl font-bold text-white mb-4">Campaign Activated!</h2>
+              <p className="text-emerald-400 font-bold max-w-md mx-auto mb-4">
+                Recipients Queued: {submitResult?.queued} <br/>
+                Skipped (Unsubscribed/Invalid): {submitResult?.skipped}
+              </p>
+              <p className="text-slate-400 max-w-md mx-auto mb-8">Redirecting to campaigns...</p>
+            </motion.div>
+          )}
+
         </AnimatePresence>
       </div>
 
@@ -388,8 +499,8 @@ export default function EmailCreateCampaign() {
       <div className="flex items-center justify-between mt-8">
         <button 
           onClick={() => setStep(s => Math.max(1, s - 1))} 
-          disabled={step === 1 || submitting}
-          className={`px-6 py-3 rounded-xl font-medium transition-colors ${step === 1 ? 'opacity-0 pointer-events-none' : 'bg-white/10 text-white hover:bg-white/20'}`}
+          disabled={step === 1 || submitting || step > STEPS.CONFIRM}
+          className={`px-6 py-3 rounded-xl font-medium transition-colors ${step === 1 || step > STEPS.CONFIRM ? 'opacity-0 pointer-events-none' : 'bg-white/10 text-white hover:bg-white/20'}`}
         >
           Back
         </button>
@@ -397,40 +508,20 @@ export default function EmailCreateCampaign() {
         {step < STEPS.CONFIRM ? (
           <button 
             onClick={handleNext}
-            disabled={uploading}
+            disabled={syncing || fetchingContacts}
             className="px-8 py-3 bg-[#F57C20] hover:bg-orange-600 text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 transition-all flex items-center gap-2"
           >
-            {uploading ? 'Processing...' : 'Next Step'} 
-            {!uploading && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M5 12h14M12 5l7 7-7 7"/></svg>}
+            Next Step <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
           </button>
-        ) : (
+        ) : step === STEPS.CONFIRM ? (
           <button 
-            onClick={() => {
-              const dailyLimitVal = document.getElementById('dailyLimit')?.value || 100;
-              // Add dailyLimit to submit handler by modifying handleSubmit to read from state or directly here
-              // For simplicity, modifying handleSubmit to accept dailyLimit directly
-              setSubmitting(true);
-              setSubmitError(null);
-              api.post('/email-campaigns', {
-                name: campaignName,
-                subject: campaignSubject || selectedTemplate.subject,
-                templateId: selectedTemplate._id,
-                htmlContent: selectedTemplate.htmlContent,
-                recipients: [],
-                dailyLimit: parseInt(dailyLimitVal, 10)
-              }).then(() => {
-                window.location.href = '/email-campaigns';
-              }).catch(err => {
-                setSubmitError(err.response?.data?.message || err.message);
-                setSubmitting(false);
-              });
-            }}
+            onClick={handleSubmit}
             disabled={submitting}
             className="px-10 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 transition-all text-lg"
           >
             {submitting ? 'Activating...' : 'Activate Campaign'}
           </button>
-        )}
+        ) : null}
       </div>
 
       {/* Toast */}
