@@ -15,6 +15,7 @@ const getAuth = async () => {
     const formattedPrivateKey = privateKey.replace(/\\n/g, '\n');
     console.log(`[GoogleAuth] Authentication method: service_account`);
     console.log(`[GoogleAuth] Client email: ${clientEmail}`);
+    console.log(`[GoogleAuth] Private key detected (length: ${privateKey.length})`);
     
     const auth = new google.auth.GoogleAuth({
       credentials: {
@@ -28,11 +29,12 @@ const getAuth = async () => {
 
   const apiKey = process.env.GOOGLE_API_KEY;
   if (apiKey) {
-    console.log(`[GoogleAuth] Authentication method: api_key`);
+    console.log(`[GoogleAuth] Authentication method: api_key (WARNING: This cannot read private sheets)`);
     return google.sheets({ version: 'v4', auth: apiKey });
   }
 
-  const error = new Error('Unable to authenticate with Google Sheets.');
+  console.error('[GoogleAuth] No valid authentication credentials found in environment variables.');
+  const error = new Error('No Google Service Account (GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY) found.');
   error.code = 'GOOGLE_AUTH_FAILED';
   throw error;
 };
@@ -187,10 +189,26 @@ exports.syncCampaignSheet = async (req, res) => {
     try {
       spreadsheetMeta = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
     } catch (error) {
-      return res.status(403).json({ 
+      console.error(`[GoogleSheetSync] Failed to read spreadsheet: ${error.message}`);
+      let code = 'GOOGLE_SHEET_ACCESS_DENIED';
+      let message = 'The configured Google account cannot access the Email Campaign Sheet.';
+      
+      if (error.code === 404) {
+        code = 'GOOGLE_SHEET_NOT_FOUND';
+        message = 'The spreadsheet was not found. Please verify the ID.';
+      } else if (error.message && error.message.toLowerCase().includes('caller does not have permission')) {
+        message = `Access denied. Please ensure the sheet is shared with ${process.env.GOOGLE_CLIENT_EMAIL}.`;
+      } else if (error.message && error.message.toLowerCase().includes('google sheets api has not been used')) {
+        code = 'GOOGLE_SHEETS_API_DISABLED';
+        message = 'Google Sheets API is not enabled for the Google Cloud project.';
+      } else {
+        message = error.message; // Expose the actual Google error securely to the admin
+      }
+      
+      return res.status(error.code || 403).json({ 
         success: false, 
-        code: 'GOOGLE_SHEET_ACCESS_DENIED',
-        message: 'The configured Google account cannot access the Email Campaign Sheet.' 
+        code,
+        message 
       });
     }
 
