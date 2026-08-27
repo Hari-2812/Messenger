@@ -88,17 +88,30 @@ const createCampaign = async (req, res) => {
   try {
     const { name, subject, htmlContent, templateId, scheduledAt, isDraft, dailyLimit, googleSheetSource } = req.body;
     
-    // We assume the user can optionally pass recipients
+    // Idempotency Check: Prevent duplicate campaigns (same name, created by same user, within 5 mins)
+    if (req.user && req.user._id) {
+      const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const existingCampaign = await EmailCampaign.findOne({
+        name,
+        createdBy: req.user._id,
+        createdAt: { $gte: fiveMinsAgo }
+      });
+
+      if (existingCampaign) {
+        return res.status(400).json({ message: 'A campaign with this name was already created recently. Please wait before creating again.' });
+      }
+    }
+
     let { recipients } = req.body; 
     
     if (typeof recipients === 'string') {
       try { recipients = JSON.parse(recipients); } catch(e) {}
     }
     
-    // If no specific recipients, get all active contacts with an email address
+    // If no specific recipients, get all active contacts with a valid email address
     if (!recipients || recipients.length === 0) {
       const contacts = await Contact.find({ 
-        email: { $ne: '' }, 
+        email: { $exists: true, $type: 'string', $nin: ['', null] },
         isDeleted: { $ne: true },
         status: { $ne: 'Unsubscribed' }
       }).select('_id');
@@ -111,7 +124,7 @@ const createCampaign = async (req, res) => {
     // Filter recipients rigorously from the DB to skip Unsubscribed and Invalid emails
     const validContacts = await Contact.find({
       _id: { $in: recipients },
-      email: { $ne: '' },
+      email: { $exists: true, $type: 'string', $nin: ['', null] },
       isDeleted: { $ne: true },
       status: { $ne: 'Unsubscribed' }
     }).select('_id name email');
@@ -140,10 +153,10 @@ const createCampaign = async (req, res) => {
       createdBy: req.user?._id
     });
 
+    // Save campaign FIRST, but be prepared to roll back
     await campaign.save();
 
     if (!isDraft && !scheduledAt) {
-      // Enqueue to EmailLog (the native email queue processor reads from here)
       const EmailLog = require('../models/EmailLog');
       
       const emailLogsToInsert = validContacts.map(contact => ({
@@ -151,10 +164,21 @@ const createCampaign = async (req, res) => {
         contactId: contact._id,
         recipientName: contact.name || '',
         recipientEmail: contact.email,
-        status: 'pending'
+        status: 'pending',
+        retryCount: 0
       }));
 
-      await EmailLog.insertMany(emailLogsToInsert, { ordered: false });
+      try {
+        await EmailLog.insertMany(emailLogsToInsert, { ordered: false });
+        console.log(`[CampaignActivation] Queue jobs created: ${emailLogsToInsert.length}`);
+      } catch (insertError) {
+        console.error('[CampaignActivation] Failed to create queue jobs. Rolling back campaign.', insertError);
+        // Rollback campaign status to prevent misleading UI
+        campaign.status = 'Failed';
+        campaign.stats.pending = 0;
+        await campaign.save();
+        return res.status(500).json({ message: 'Campaign could not be activated because email queue creation failed.' });
+      }
     }
 
     res.status(201).json({ 

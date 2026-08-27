@@ -30,7 +30,7 @@ const processEmailQueue = async () => {
     // 2. Fetch pending emails up to the allowance
     const pendingEmails = await EmailLog.find({
       status: 'pending',
-      retryCount: { $lt: 3 }
+      $or: [{ retryCount: { $lt: 3 } }, { retryCount: { $exists: false } }, { retryCount: null }]
     })
     .sort({ createdAt: 1 })
     .limit(allowance)
