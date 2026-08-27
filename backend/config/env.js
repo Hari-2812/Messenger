@@ -1,4 +1,4 @@
-const BASE_REQUIRED_ENV = ['MONGODB_URI', 'JWT_SECRET', 'GOOGLE_API_KEY'];
+const BASE_REQUIRED_ENV = ['MONGODB_URI', 'JWT_SECRET'];
 
 const PROVIDER_ENV = {
   meta: [
@@ -42,6 +42,9 @@ const validateEnv = () => {
   if (!process.env.NODE_ENV) console.warn('[Env] NODE_ENV not set; defaulting to development');
   if (!process.env.DELIVERY_TIMEOUT_MINUTES) {
     console.warn('[Env] DELIVERY_TIMEOUT_MINUTES not set; defaulting to 30 minutes');
+  }
+  if (!process.env.GOOGLE_API_KEY) {
+    console.warn('[Env] WARNING: GOOGLE_API_KEY is not set. Google Sheets integration will not work until this is configured in Render.');
   }
 
   console.log('[Env] All required environment variables present');
