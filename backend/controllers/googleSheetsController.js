@@ -8,13 +8,33 @@ const Settings = require('../models/Settings'); // Assuming Settings exist
 // We will store Google Sheets credentials in Settings or Environment.
 
 const getAuth = async () => {
-  const apiKey = process.env.GOOGLE_API_KEY;
-  if (!apiKey) {
-    const error = new Error('Unable to authenticate with Google Sheets.');
-    error.code = 'GOOGLE_AUTH_FAILED';
-    throw error;
+  const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
+  const privateKey = process.env.GOOGLE_PRIVATE_KEY;
+
+  if (clientEmail && privateKey) {
+    const formattedPrivateKey = privateKey.replace(/\\n/g, '\n');
+    console.log(`[GoogleAuth] Authentication method: service_account`);
+    console.log(`[GoogleAuth] Client email: ${clientEmail}`);
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: clientEmail,
+        private_key: formattedPrivateKey,
+      },
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    return google.sheets({ version: 'v4', auth });
   }
-  return google.sheets({ version: 'v4', auth: apiKey });
+
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (apiKey) {
+    console.log(`[GoogleAuth] Authentication method: api_key`);
+    return google.sheets({ version: 'v4', auth: apiKey });
+  }
+
+  const error = new Error('Unable to authenticate with Google Sheets.');
+  error.code = 'GOOGLE_AUTH_FAILED';
+  throw error;
 };
 
 const extractSheetId = (urlOrId) => {
