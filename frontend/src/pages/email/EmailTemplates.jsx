@@ -88,6 +88,14 @@ export default function EmailTemplates() {
               <div>
                 <label className="block text-sm font-medium mb-1">HTML Content</label>
                 <textarea required rows={8} value={formData.htmlContent} onChange={e => setFormData({ ...formData, htmlContent: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-lg p-2.5 text-white font-mono text-sm" />
+                <div className="mt-3 p-3 bg-white/5 rounded-lg border border-white/10">
+                  <p className="text-xs text-slate-400 font-medium mb-2 uppercase tracking-wider">Available Variables:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['{{name}}', '{{company}}', '{{email}}', '{{phone}}', '{{website}}', '{{industry}}', '{{location}}'].map(v => (
+                      <span key={v} className="text-xs bg-[#F57C20]/20 text-[#F57C20] px-2 py-1 rounded font-mono border border-[#F57C20]/30">{v}</span>
+                    ))}
+                  </div>
+                </div>
               </div>
               <div className="pt-4 flex justify-end gap-3">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 rounded hover:bg-white/10">Cancel</button>

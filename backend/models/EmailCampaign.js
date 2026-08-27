@@ -4,14 +4,21 @@ const emailCampaignSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     subject: { type: String, required: true },
-    senderName: { type: String, required: true },
-    senderEmail: { type: String, required: true },
-    htmlContent: { type: String, required: true }, // The final HTML sent
+    senderName: { type: String, required: false },
+    senderEmail: { type: String, required: false },
+    htmlContent: { type: String, required: false }, // The final HTML sent
     templateId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmailTemplate', default: null },
+    googleSheetSource: {
+      sheetId: { type: String, default: null },
+      sheetName: { type: String, default: null },
+      mapping: { type: mongoose.Schema.Types.Mixed, default: {} }
+    },
     recipients: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Contact' }],
+    dailyLimit: { type: Number, default: 100 },
+    timezone: { type: String, default: 'UTC' },
     status: {
       type: String,
-      enum: ['Draft', 'Scheduled', 'Sending', 'Completed', 'Failed'],
+      enum: ['Draft', 'Scheduled', 'Active', 'Paused', 'Completed', 'Failed'],
       default: 'Draft',
     },
     scheduledAt: { type: Date, default: null },
@@ -24,11 +31,12 @@ const emailCampaignSchema = new mongoose.Schema(
     stats: {
       totalContacts: { type: Number, default: 0 },
       totalSent: { type: Number, default: 0 },
-      delivered: { type: Number, default: 0 },
+      pending: { type: Number, default: 0 },
       failed: { type: Number, default: 0 },
-      bounce: { type: Number, default: 0 },
-      opened: { type: Number, default: 0 },
-      clicked: { type: Number, default: 0 },
+      replies: { type: Number, default: 0 },
+      bounced: { type: Number, default: 0 },
+      unsubscribed: { type: Number, default: 0 },
+      completionPercentage: { type: Number, default: 0 },
     },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     error: { type: String, default: null }, // Global error if campaign fails entirely

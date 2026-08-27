@@ -86,11 +86,7 @@ const getDashboardStats = async (req, res) => {
 // @route   POST /api/email-campaigns
 const createCampaign = async (req, res) => {
   try {
-    if (!process.env.BREVO_API_KEY || !process.env.BREVO_SENDER_NAME || !process.env.BREVO_SENDER_EMAIL) {
-      return res.status(400).json({ message: 'Brevo configuration missing. Please verify BREVO_API_KEY, BREVO_SENDER_NAME, and BREVO_SENDER_EMAIL in your environment.' });
-    }
-
-    const { name, subject, senderName, senderEmail, htmlContent, templateId, scheduledAt, isDraft } = req.body;
+    const { name, subject, htmlContent, templateId, scheduledAt, isDraft, dailyLimit, googleSheetSource } = req.body;
     
     // We assume the user can optionally pass recipients, or we fetch all contacts with email
     let { recipients } = req.body; 
@@ -109,33 +105,19 @@ const createCampaign = async (req, res) => {
       return res.status(400).json({ message: 'No recipients found with valid email addresses.' });
     }
 
-    const attachments = [];
-    if (req.file) {
-      // Assuming a local upload, we'd need a public URL for Brevo or pass base64.
-      // Brevo accepts { content: base64, name: filename }
-      const fileBuffer = fs.readFileSync(req.file.path);
-      const base64Content = fileBuffer.toString('base64');
-      attachments.push({
-        content: base64Content,
-        name: req.file.originalname
-      });
-      // Clean up the local temp file
-      fs.unlinkSync(req.file.path);
-    }
-
     const campaign = new EmailCampaign({
       name,
       subject,
-      senderName,
-      senderEmail,
       htmlContent,
       templateId: templateId || null,
       recipients,
+      dailyLimit: dailyLimit || 100,
+      googleSheetSource: googleSheetSource || {},
       scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
-      status: isDraft ? 'Draft' : (scheduledAt ? 'Scheduled' : 'Sending'),
-      attachments: req.file ? [{ url: 'attached', name: req.file.originalname }] : [],
+      status: isDraft ? 'Draft' : (scheduledAt ? 'Scheduled' : 'Active'),
       stats: {
         totalContacts: recipients.length,
+        pending: recipients.length
       },
       createdBy: req.user?._id
     });
@@ -143,63 +125,21 @@ const createCampaign = async (req, res) => {
     await campaign.save();
 
     if (!isDraft && !scheduledAt) {
-      // Trigger sending asynchronously
-      sendCampaignEmails(campaign, attachments);
+      // Enqueue to CampaignRecipient
+      const CampaignRecipient = require('../models/CampaignRecipient');
+      const recipientsToInsert = recipients.map(contactId => ({
+        campaignId: campaign._id,
+        contactId: contactId,
+        status: 'Pending'
+      }));
+
+      await CampaignRecipient.insertMany(recipientsToInsert);
     }
 
     res.status(201).json({ message: 'Campaign created successfully', campaign });
   } catch (error) {
     console.error('Error creating email campaign:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
-// Helper function to enqueue emails in background
-const sendCampaignEmails = async (campaign, attachments) => {
-  console.log(`[Campaign] Starting enqueue process for campaign ${campaign._id}. Requested recipients: ${campaign.recipients.length}`);
-  try {
-    const contacts = await Contact.find({ _id: { $in: campaign.recipients } });
-    console.log(`[Campaign] Retrieved ${contacts.length} contacts from database.`);
-    
-    const logsToInsert = [];
-
-    for (const contact of contacts) {
-      if (!contact.email) {
-        console.warn(`[Campaign] Contact ${contact._id} has no email address. Skipping.`);
-        continue;
-      }
-      
-      logsToInsert.push({
-        campaignId: campaign._id,
-        contactId: contact._id,
-        recipientName: contact.name,
-        recipientEmail: contact.email,
-        customFields: contact.customFields,
-        status: 'Pending'
-      });
-    }
-
-    if (logsToInsert.length > 0) {
-      console.log(`[Campaign] Inserting ${logsToInsert.length} logs to MongoDB...`);
-      await EmailLog.insertMany(logsToInsert);
-      console.log(`[Campaign] Successfully inserted ${logsToInsert.length} pending emails into queue.`);
-    } else {
-      console.warn(`[Campaign] No valid emails found to enqueue for campaign ${campaign._id}`);
-    }
-
-    campaign.stats.totalContacts = logsToInsert.length;
-    campaign.status = 'Sending'; // It's in the queue now
-    await campaign.save();
-    
-    // The actual sending will be handled by the background cron job (emailQueue.service.js)
-    console.log(`[Campaign] Finished enqueueing. Total queued emails for campaign ${campaign._id}: ${logsToInsert.length}`);
-  } catch (error) {
-    console.error(`[Campaign] Error enqueueing campaign ${campaign._id}:`, error.message);
-    if (error.response) console.error(error.response.data);
-    
-    campaign.status = 'Failed';
-    campaign.error = error.message;
-    await campaign.save();
+    res.status(500).json({ message: 'Server error: ' + error.message });
   }
 };
 

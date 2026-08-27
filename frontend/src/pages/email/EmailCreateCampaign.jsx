@@ -320,29 +320,43 @@ export default function EmailCreateCampaign() {
           {/* STEP 4: PREVIEW */}
           {step === STEPS.PREVIEW && (
             <motion.div key="step4" variants={slideVariants} initial="initial" animate="enter" exit="exit" transition={{ duration: 0.3 }}>
-              <h2 className="text-2xl font-bold text-white mb-6">Step 4: Review Limits</h2>
+              <h2 className="text-2xl font-bold text-white mb-6">Step 4: Configure & Preview</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-white/5 p-6 rounded-2xl border border-white/10">
-                  <h3 className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-4">Import Summary</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-lg"><span className="text-slate-300">Total Found:</span> <span className="text-white font-bold">{importResult?.total || 'All CRM Contacts'}</span></div>
-                    {importResult?.imported !== undefined && (
-                      <div className="flex justify-between text-lg"><span className="text-emerald-400">Successfully Imported:</span> <span className="text-white font-bold">{importResult.imported}</span></div>
-                    )}
-                    {importResult?.skipped > 0 && (
-                      <div className="flex justify-between text-lg"><span className="text-amber-400">Skipped (Duplicates):</span> <span className="text-white font-bold">{importResult.skipped}</span></div>
-                    )}
+                  <h3 className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-4">Configuration</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Daily Sending Limit</label>
+                      <input 
+                        type="number" 
+                        defaultValue={100}
+                        id="dailyLimit"
+                        className="w-full bg-[#374151] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#F57C20]" 
+                      />
+                    </div>
+                    <div>
+                      <span className="text-slate-300">Total Contacts Target:</span> <span className="text-white font-bold ml-2">{importResult?.total || 'All CRM Contacts'}</span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="bg-orange-500/10 p-6 rounded-2xl border border-[#F57C20]/20">
-                  <h3 className="text-orange-400 text-sm font-medium uppercase tracking-wider mb-4">Brevo Sending Limits</h3>
-                  <p className="text-slate-300 leading-relaxed mb-4">
-                    Your Brevo SMTP account is limited to sending <strong className="text-white">300 emails per day</strong>. 
-                  </p>
-                  <p className="text-slate-300 leading-relaxed">
-                    This campaign will be placed in the internal queue. Our background worker will automatically dispatch emails without exceeding your daily quota.
-                  </p>
+                <div className="bg-[#1f2937] p-6 rounded-2xl border border-white/10 flex flex-col">
+                  <h3 className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-4">Email Preview</h3>
+                  <div className="flex-1 bg-white p-4 rounded-xl text-black overflow-y-auto max-h-60 text-sm">
+                    {/* Minimal variable replacement preview */}
+                    {selectedTemplate ? (
+                      <div dangerouslySetInnerHTML={{ 
+                        __html: selectedTemplate.htmlContent
+                          .replace(/{{name}}/g, 'Arun')
+                          .replace(/{{company}}/g, 'ABC Interiors')
+                          .replace(/{{website}}/g, 'abcinteriors.com')
+                          .replace(/{{industry}}/g, 'Design')
+                          .replace(/{{location}}/g, 'New York')
+                      }} />
+                    ) : (
+                      <p>No template selected.</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -354,9 +368,9 @@ export default function EmailCreateCampaign() {
               <div className="w-20 h-20 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-6">
                 <Icons.Upload />
               </div>
-              <h2 className="text-3xl font-bold text-white mb-4">Ready to Send!</h2>
+              <h2 className="text-3xl font-bold text-white mb-4">Ready to Activate!</h2>
               <p className="text-slate-400 max-w-md mx-auto mb-8">
-                Your campaign <strong>{campaignName}</strong> is ready. Clicking "Send Campaign" will queue the emails for immediate delivery processing.
+                Your campaign <strong>{campaignName}</strong> is ready. Clicking "Activate Campaign" will queue the emails. Google Apps Script will handle the automated dispatching based on your daily limit.
               </p>
               
               {submitError && (
@@ -391,11 +405,30 @@ export default function EmailCreateCampaign() {
           </button>
         ) : (
           <button 
-            onClick={handleSubmit}
+            onClick={() => {
+              const dailyLimitVal = document.getElementById('dailyLimit')?.value || 100;
+              // Add dailyLimit to submit handler by modifying handleSubmit to read from state or directly here
+              // For simplicity, modifying handleSubmit to accept dailyLimit directly
+              setSubmitting(true);
+              setSubmitError(null);
+              api.post('/email-campaigns', {
+                name: campaignName,
+                subject: campaignSubject || selectedTemplate.subject,
+                templateId: selectedTemplate._id,
+                htmlContent: selectedTemplate.htmlContent,
+                recipients: [],
+                dailyLimit: parseInt(dailyLimitVal, 10)
+              }).then(() => {
+                window.location.href = '/email-campaigns';
+              }).catch(err => {
+                setSubmitError(err.response?.data?.message || err.message);
+                setSubmitting(false);
+              });
+            }}
             disabled={submitting}
             className="px-10 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 transition-all text-lg"
           >
-            {submitting ? 'Sending...' : 'Send Campaign'}
+            {submitting ? 'Activating...' : 'Activate Campaign'}
           </button>
         )}
       </div>

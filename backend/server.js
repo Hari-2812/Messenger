@@ -175,6 +175,12 @@ app.use('/api/email-templates', emailTemplateRoutes);
 const settingsRoutes = require('./routes/settingsRoutes');
 app.use('/api/settings', settingsRoutes);
 
+const googleSheetsRoutes = require('./routes/googleSheetsRoutes');
+app.use('/api/google-sheets', googleSheetsRoutes);
+
+const appsScriptRoutes = require('./routes/appsScriptRoutes');
+app.use('/api/apps-script', appsScriptRoutes);
+
 // ── 404 Handler ────────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({
