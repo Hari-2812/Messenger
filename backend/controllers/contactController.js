@@ -440,7 +440,6 @@ const importContacts = async (req, res) => {
   });
 };
 
-module.exports = {
 // @desc    Bulk import contacts directly from JSON (Pasted Name/Email)
 // @route   POST /api/contacts/bulk-import
 const bulkImportContacts = async (req, res) => {
