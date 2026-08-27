@@ -116,15 +116,18 @@ export default function EmailCreateCampaign() {
   const fetchCRMContacts = async () => {
     setFetchingContacts(true);
     try {
-      // Fetch up to 5000 contacts for selection
       const res = await contactsAPI.getAll({ page: 1, limit: 5000 });
       const data = res.data.contacts || res.data || [];
-      // Filter out empty emails
-      const valid = data.filter(c => c.email && c.email.includes('@'));
+      // Only keep contacts that were synced from the sheet
+      const valid = data.filter(c => c.email && c.email.includes('@') && c.source === 'Email Campaign Sheet');
       setContacts(valid);
       setFilteredContacts(valid);
+      // If we are loading previously synced contacts, mark them as stale
+      if (valid.length > 0) {
+        setSyncResult(prev => prev ? prev : { isStale: true });
+      }
     } catch (err) {
-      showToast('Failed to load contacts', 'error');
+      showToast('Failed to load previous contacts', 'error');
     } finally {
       setFetchingContacts(false);
     }
@@ -153,14 +156,22 @@ export default function EmailCreateCampaign() {
     try {
       const res = await googleSheetsAPI.syncCampaignSheet();
       if (res.data.success) {
-        setSyncResult(res.data);
+        setSyncResult({ ...res.data, isStale: false });
         showToast('Google Sheet synced successfully');
-        await fetchCRMContacts();
+        
+        // Use the returned contacts directly instead of refetching all CRM contacts
+        const valid = res.data.contacts.filter(c => c.email && c.email.includes('@'));
+        setContacts(valid);
+        setFilteredContacts(valid);
       } else {
+        setSyncResult({ error: res.data.message || 'Sync failed', code: res.data.code });
         showToast(res.data.message || 'Sync failed', 'error');
       }
     } catch (err) {
-      showToast(err.response?.data?.message || err.message || 'Sync failed', 'error');
+      const msg = err.response?.data?.message || err.message || 'Sync failed';
+      const code = err.response?.data?.code || 'UNKNOWN_ERROR';
+      setSyncResult({ error: msg, code });
+      showToast(msg, 'error');
     } finally {
       setSyncing(false);
     }
@@ -360,9 +371,22 @@ export default function EmailCreateCampaign() {
                 </button>
               </div>
 
-              {syncResult && (
+              {syncResult && !syncResult.error && !syncResult.isStale && (
                 <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 text-emerald-300 text-sm">
-                  ✓ Google Sheet synced successfully. Found {syncResult.total} rows: {syncResult.imported} New, {syncResult.updated} Updated, {syncResult.invalid} Invalid.
+                  ✓ Google Sheet synced successfully. Found {syncResult.totalRows} rows: {syncResult.newContacts} New, {syncResult.updatedContacts} Updated, {syncResult.duplicates} Duplicates Skipped, {syncResult.invalidRows} Invalid.
+                </div>
+              )}
+
+              {syncResult && !syncResult.error && syncResult.isStale && contacts.length > 0 && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 text-amber-300 text-sm">
+                  ⚠ Displaying previously synced contacts. Click "Sync from Google Sheet" to fetch latest data.
+                </div>
+              )}
+
+              {syncResult && syncResult.error && (
+                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-300 text-sm">
+                  <div className="font-bold mb-1">Google Sheet sync failed ({syncResult.code})</div>
+                  {syncResult.error}
                 </div>
               )}
 

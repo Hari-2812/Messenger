@@ -63,7 +63,7 @@ const Contacts = () => {
       const res = await googleSheetsAPI.syncCampaignSheet();
       if (res.data.success) {
         const d = res.data;
-        toast.success(`Sync Complete: ${d.imported} New, ${d.updated} Updated, ${d.skipped} Skipped, ${d.invalid} Invalid.`, {
+        toast.success(`Sync Complete: ${d.newContacts} New, ${d.updatedContacts} Updated, ${d.duplicates} Skipped, ${d.invalidRows} Invalid.`, {
           id: loadingToast,
           duration: 5000
         });
@@ -71,10 +71,14 @@ const Contacts = () => {
         setPage(1);
         fetchContacts(1, search);
       } else {
-        toast.error(res.data.message || 'Sync failed', { id: loadingToast });
+        const errorMsg = res.data.message || 'Sync failed';
+        const codeStr = res.data.code ? ` (${res.data.code})` : '';
+        toast.error(`${errorMsg}${codeStr}`, { id: loadingToast, duration: 6000 });
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || err.message || 'Sync failed', { id: loadingToast });
+      const errorMsg = err.response?.data?.message || err.message || 'Sync failed';
+      const codeStr = err.response?.data?.code ? ` (${err.response?.data?.code})` : '';
+      toast.error(`${errorMsg}${codeStr}`, { id: loadingToast, duration: 6000 });
     } finally {
       setSyncing(false);
     }

@@ -8,12 +8,11 @@ const Settings = require('../models/Settings'); // Assuming Settings exist
 // We will store Google Sheets credentials in Settings or Environment.
 
 const getAuth = async () => {
-  // If the user wants to connect without OAuth just for the sake of demo/testing, 
-  // we could just accept a publicly shared sheet ID, or require API key in .env.
-  // We'll use API Key from .env if present.
   const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) {
-    throw new Error('GOOGLE_API_KEY is not configured in environment variables.');
+    const error = new Error('Unable to authenticate with Google Sheets.');
+    error.code = 'GOOGLE_AUTH_FAILED';
+    throw error;
   }
   return google.sheets({ version: 'v4', auth: apiKey });
 };
@@ -139,26 +138,83 @@ exports.syncCampaignSheet = async (req, res) => {
   try {
     const sheetId = process.env.EMAIL_CAMPAIGN_SHEET_ID;
     if (!sheetId) {
-      return res.status(400).json({ success: false, message: 'EMAIL_CAMPAIGN_SHEET_ID is not configured in Render environment variables.' });
+      return res.status(400).json({ 
+        success: false, 
+        code: 'GOOGLE_SHEET_NOT_CONFIGURED',
+        message: 'Email Campaign Google Sheet is not configured.' 
+      });
     }
 
-    const sheets = await getAuth();
-    const sheetName = process.env.EMAIL_CAMPAIGN_SHEET_TAB || '';
+    console.log('[GoogleSheetSync] Request received');
+    console.log('[GoogleSheetSync] Spreadsheet ID source: environment');
+
+    let sheets;
+    try {
+      sheets = await getAuth();
+      console.log('[GoogleSheetSync] Authentication: configured');
+    } catch (err) {
+      return res.status(401).json({
+        success: false,
+        code: 'GOOGLE_AUTH_FAILED',
+        message: 'Unable to authenticate with Google Sheets.'
+      });
+    }
+
+    const configuredWorksheet = process.env.EMAIL_CAMPAIGN_SHEET_TAB || '';
     
-    let rangeToFetch = 'A:Z';
-    if (sheetName) {
-      rangeToFetch = `${sheetName}!A:Z`;
+    console.log('[GoogleSheetSync] Reading spreadsheet');
+    let spreadsheetMeta;
+    try {
+      spreadsheetMeta = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
+    } catch (error) {
+      return res.status(403).json({ 
+        success: false, 
+        code: 'GOOGLE_SHEET_ACCESS_DENIED',
+        message: 'The configured Google account cannot access the Email Campaign Sheet.' 
+      });
     }
 
+    const availableSheets = spreadsheetMeta.data.sheets.map(s => s.properties.title);
+    
+    let targetWorksheet = availableSheets[0];
+    if (configuredWorksheet) {
+      if (availableSheets.includes(configuredWorksheet)) {
+        targetWorksheet = configuredWorksheet;
+      } else {
+        return res.status(400).json({
+          success: false,
+          code: 'WORKSHEET_NOT_FOUND',
+          message: 'The configured worksheet could not be found.'
+        });
+      }
+    }
+    
+    console.log(`[GoogleSheetSync] Worksheet: ${targetWorksheet}`);
+
+    const rangeToFetch = `${targetWorksheet}!A:Z`;
     const response = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: rangeToFetch });
     const rows = response.data.values;
     
     if (!rows || rows.length <= 1) {
-      return res.json({ success: true, imported: 0, updated: 0, skipped: 0, invalid: 0, total: 0 });
+      console.log('[GoogleSheetSync] No contacts were found in the Google Sheet.');
+      return res.json({ 
+        success: true, 
+        source: 'google_sheet',
+        spreadsheetIdConfigured: true,
+        worksheet: targetWorksheet,
+        totalRows: 0, 
+        validRows: 0, 
+        newContacts: 0, 
+        updatedContacts: 0, 
+        duplicates: 0, 
+        invalidRows: 0, 
+        contacts: [] 
+      });
     }
 
     const headers = rows[0].map(h => h.toString().toLowerCase().trim());
     const dataRows = rows.slice(1);
+    console.log(`[GoogleSheetSync] Rows received: ${dataRows.length}`);
     
     // Auto-map headers based on common names
     const findHeader = (matches) => {
@@ -170,36 +226,54 @@ exports.syncCampaignSheet = async (req, res) => {
     };
 
     const mapIdx = {
-      email: findHeader(['email', 'e-mail', 'email address']),
-      name: findHeader(['name', 'full name', 'first name', 'contact name', 'recipient']),
-      companyName: findHeader(['company', 'organization', 'business']),
-      phone: findHeader(['phone', 'mobile', 'cell', 'telephone']),
+      email: findHeader(['email', 'e-mail', 'email address', 'mail id', 'mail']),
+      name: findHeader(['name', 'full name', 'first name', 'contact name', 'recipient', 'student name', 'candidate name']),
+      companyName: findHeader(['company', 'organization', 'business', 'college', 'college name', 'university']),
+      phone: findHeader(['phone', 'mobile', 'cell', 'telephone', 'phone number']),
       website: findHeader(['website', 'url', 'site']),
       industry: findHeader(['industry', 'sector', 'niche']),
       location: findHeader(['location', 'city', 'address', 'country']),
     };
 
     if (mapIdx.email === -1) {
-      return res.status(400).json({ success: false, message: 'Could not find an Email column in the spreadsheet. Please ensure a column contains "Email".' });
+      return res.status(400).json({ 
+        success: false, 
+        code: 'INVALID_SHEET_STRUCTURE',
+        message: 'The Google Sheet does not contain a valid Email column.' 
+      });
     }
 
     let imported = 0;
     let updated = 0;
-    let skipped = 0;
+    let skippedDuplicates = 0;
     let invalid = 0;
+    
+    const processedEmails = new Set();
+    const resultContacts = [];
 
     for (const row of dataRows) {
-      const email = row[mapIdx.email] ? row[mapIdx.email].toString().trim() : '';
+      // Ignore completely empty rows
+      if (!row || row.length === 0 || row.every(cell => !cell || cell.toString().trim() === '')) {
+        continue;
+      }
+
+      const emailRaw = row[mapIdx.email] ? row[mapIdx.email].toString().trim().toLowerCase() : '';
       
       // Basic email validation
-      if (!email || !email.includes('@')) {
+      if (!emailRaw || !emailRaw.includes('@')) {
         invalid++;
         continue;
       }
 
-      const contactData = { email };
+      if (processedEmails.has(emailRaw)) {
+        skippedDuplicates++;
+        continue;
+      }
+      processedEmails.add(emailRaw);
+
+      const contactData = { email: emailRaw };
       if (mapIdx.name !== -1 && row[mapIdx.name]) contactData.name = row[mapIdx.name].toString().trim();
-      else contactData.name = email.split('@')[0]; // Default name to email prefix if not provided
+      else contactData.name = emailRaw.split('@')[0]; // Default name to email prefix if not provided
       
       if (mapIdx.companyName !== -1 && row[mapIdx.companyName]) contactData.companyName = row[mapIdx.companyName].toString().trim();
       if (mapIdx.phone !== -1 && row[mapIdx.phone]) contactData.phone = row[mapIdx.phone].toString().trim();
@@ -222,30 +296,37 @@ exports.syncCampaignSheet = async (req, res) => {
         if (isModified) {
           await existing.save();
           updated++;
-        } else {
-          skipped++;
         }
+        resultContacts.push(existing);
       } else {
         const newContact = new Contact({ ...contactData, source: 'Email Campaign Sheet' });
         await newContact.save();
         imported++;
+        resultContacts.push(newContact);
       }
     }
 
+    console.log(`[GoogleSheetSync] Valid contacts: ${resultContacts.length}`);
+    console.log(`[GoogleSheetSync] New contacts: ${imported}`);
+    console.log(`[GoogleSheetSync] Updated contacts: ${updated}`);
+    console.log(`[GoogleSheetSync] Duplicates skipped: ${skippedDuplicates}`);
+    console.log(`[GoogleSheetSync] Sync completed successfully`);
+
     res.json({
       success: true,
-      message: 'Sync completed',
-      total: dataRows.length,
-      imported,
-      updated,
-      skipped,
-      invalid
+      source: 'google_sheet',
+      spreadsheetIdConfigured: true,
+      worksheet: targetWorksheet,
+      totalRows: dataRows.length,
+      validRows: resultContacts.length,
+      newContacts: imported,
+      updatedContacts: updated,
+      duplicates: skippedDuplicates,
+      invalidRows: invalid,
+      contacts: resultContacts
     });
 
   } catch (error) {
-    if (error.code === 403 || error.code === 404) {
-      return res.status(403).json({ success: false, message: 'The configured Google account does not have access to this spreadsheet. Ensure it is shared as "Anyone with the link can view".' });
-    }
     res.status(500).json({ success: false, message: 'Sync failed: ' + error.message });
   }
 };
