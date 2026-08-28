@@ -488,7 +488,9 @@ const bulkImportContacts = async (req, res) => {
             email: rawEmail,
             source: 'Manual Import'
           },
-          // We set phone to a placeholder if not present, because the schema previously required unique phone numbers or we just let it be empty since schema allows empty. Wait, the existing schema defaults phone to empty string but has an index on it. Let's not set a placeholder unless required.
+          $setOnInsert: {
+            phone: `EMAIL_${Date.now()}_${Math.random().toString(36).substring(7)}`
+          }
         },
         upsert: true
       }
@@ -504,7 +506,7 @@ const bulkImportContacts = async (req, res) => {
   }
 
   try {
-    const result = await Contact.bulkWrite(validOperations);
+    const result = await Contact.bulkWrite(validOperations, { ordered: false });
     imported = result.upsertedCount || 0;
     updated = result.modifiedCount || 0;
     
@@ -513,6 +515,13 @@ const bulkImportContacts = async (req, res) => {
     // it won't be in modifiedCount. So technically "updated" might be lower than actual matches.
     const matchedButNotModified = (result.matchedCount || 0) - (result.modifiedCount || 0);
     duplicatesSkipped += matchedButNotModified;
+
+    console.log('[ContactsImport] Import requested');
+    console.log(`[ContactsImport] Records received: ${contacts.length}`);
+    console.log(`[ContactsImport] Valid records: ${validOperations.length}`);
+    console.log(`[ContactsImport] Duplicates skipped: ${duplicatesSkipped}`);
+    console.log(`[ContactsImport] Invalid records: ${invalid}`);
+    console.log(`[ContactsImport] Successfully inserted/updated: ${imported + updated}`);
 
     res.json({
       success: true,
@@ -525,6 +534,27 @@ const bulkImportContacts = async (req, res) => {
     });
   } catch (error) {
     console.error('[BulkImport] Error:', error);
+
+    // If it's a BulkWriteError but we still managed to insert/update some, we can recover
+    if (error.name === 'BulkWriteError' && error.result) {
+      imported = error.result.upsertedCount || 0;
+      updated = error.result.modifiedCount || 0;
+      const matchedButNotModified = (error.result.matchedCount || 0) - (error.result.modifiedCount || 0);
+      duplicatesSkipped += matchedButNotModified;
+      
+      console.log(`[ContactsImport] Partial success after error. Inserted/Updated: ${imported + updated}`);
+      
+      return res.json({
+        success: true,
+        message: 'Bulk import completed with some errors',
+        total: contacts.length,
+        imported,
+        updated,
+        duplicatesSkipped,
+        invalid: invalid + (error.writeErrors ? error.writeErrors.length : 0)
+      });
+    }
+
     res.status(500).json({ 
       success: false, 
       code: 'CONTACT_IMPORT_FAILED',
