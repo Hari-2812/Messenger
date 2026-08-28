@@ -6,13 +6,13 @@
 
 /* ── Custom Properties ──────────────────────────────────────────────── */
 :root {
-  --gradient-primary: linear-gradient(135deg, #241252 0%, #31206B 100%);
-  --gradient-dark:    linear-gradient(135deg, #111827 0%, #1f2937 100%);
+  --gradient-primary: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+  --gradient-dark:    linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
   --gradient-green:   linear-gradient(135deg, #16A34A 0%, #15803d 100%);
-  --gradient-orange:  linear-gradient(135deg, #F57C20 0%, #FF8F3D 100%);
-  --shadow-glass:     0 8px 32px rgba(36, 18, 82, 0.12);
+  --gradient-orange:  linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+  --shadow-glass:     0 8px 32px rgba(37, 99, 235, 0.12);
   --shadow-card:      0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
-  --shadow-elevated:  0 4px 24px rgba(36, 18, 82, 0.18);
+  --shadow-elevated:  0 4px 24px rgba(37, 99, 235, 0.18);
   --radius-card:      16px;
   --sidebar-width:    260px;
 }
@@ -225,11 +225,10 @@ body {
 
   /* Progress bar */
   .progress-bar {
-    @apply h-2 bg-gray-100 rounded-full overflow-hidden;
+    @apply h-2 bg-border rounded-full overflow-hidden;
   }
   .progress-fill {
-    @apply h-full rounded-full transition-all duration-500;
-    background: var(--gradient-primary);
+    @apply h-full rounded-full transition-all duration-500 bg-primary;
   }
 }
 

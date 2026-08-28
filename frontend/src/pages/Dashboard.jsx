@@ -86,10 +86,10 @@ const Dashboard = () => {
       <div className="space-y-6 animate-pulse p-6 max-w-7xl mx-auto">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-40 bg-[#1f2937] rounded-2xl border border-white/5" />
+            <div key={i} className="h-40 bg-card rounded-2xl border border-border" />
           ))}
         </div>
-        <div className="h-80 bg-[#1f2937] rounded-2xl border border-white/5" />
+        <div className="h-80 bg-card rounded-2xl border border-border" />
       </div>
     );
   }
@@ -114,8 +114,8 @@ const Dashboard = () => {
       {/* ── Page Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-[linear-gradient(to_right,#F57C20,#f59e0b)]">Email Dashboard</h1>
-          <p className="text-slate-400 mt-2">Overview of your Email Outreach Campaigns</p>
+          <h1 className="text-3xl font-bold text-primary-dark">Email Dashboard</h1>
+          <p className="text-text-muted mt-2">Overview of your Email Outreach Campaigns</p>
         </div>
         <div className="flex gap-3">
           <motion.button
@@ -123,7 +123,7 @@ const Dashboard = () => {
             whileTap={{ scale: 0.98 }}
             onClick={() => fetchStats(true)}
             disabled={refreshing}
-            className="px-4 py-2 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10 transition-colors flex items-center gap-2"
+            className="px-4 py-2 rounded-xl bg-card text-text hover:bg-background border border-border transition-colors flex items-center gap-2 shadow-sm"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
               className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`}>
@@ -133,7 +133,7 @@ const Dashboard = () => {
             {refreshing ? 'Refreshing…' : 'Refresh'}
           </motion.button>
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            <Link to="/email/campaigns" className="px-5 py-2.5 bg-[#F57C20] hover:bg-orange-600 text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 transition-all flex items-center gap-2">
+            <Link to="/email/campaigns" className="px-5 py-2.5 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl shadow-lg transition-all flex items-center gap-2">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
                 <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
@@ -150,7 +150,7 @@ const Dashboard = () => {
           title="Total Contacts"
           value={stats.totalContacts?.toLocaleString()}
           icon="👥"
-          gradient="linear-gradient(135deg, #1f2937 0%, #374151 100%)"
+          gradient="linear-gradient(135deg, #0F172A 0%, #1E293B 100%)"
           sub="In your CRM"
         />
         <KpiCard
@@ -158,7 +158,7 @@ const Dashboard = () => {
           title="Active Campaigns"
           value={stats.totalCampaigns?.toLocaleString()}
           icon="🚀"
-          gradient="linear-gradient(135deg, #F57C20 0%, #f59e0b 100%)"
+          gradient="linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)"
           sub="Currently running"
         />
         <KpiCard
@@ -166,7 +166,7 @@ const Dashboard = () => {
           title="Emails Sent Today"
           value={stats.emailsSentToday?.toLocaleString()}
           icon="📤"
-          gradient="linear-gradient(135deg, #059669 0%, #10b981 100%)"
+          gradient="linear-gradient(135deg, #16A34A 0%, #15803d 100%)"
           sub="Across all campaigns"
         />
         <KpiCard
@@ -174,7 +174,7 @@ const Dashboard = () => {
           title="Pending Queue"
           value={stats.pending?.toLocaleString()}
           icon="⏳"
-          gradient="linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%)"
+          gradient="linear-gradient(135deg, #0EA5E9 0%, #0369a1 100%)"
           sub="Waiting for next window"
         />
       </div>
@@ -184,11 +184,11 @@ const Dashboard = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.7 }}
-        className="bg-[#1f2937] border border-white/10 rounded-3xl overflow-hidden shadow-xl"
+        className="bg-card border border-border rounded-3xl overflow-hidden shadow-xl"
       >
-        <div className="px-6 py-5 border-b border-white/10 flex justify-between items-center bg-white/5">
-          <h3 className="text-lg font-bold text-white">Active Campaigns</h3>
-          <Link to="/email/campaigns" className="text-[#F57C20] hover:text-orange-400 text-sm font-bold flex items-center gap-1 transition-colors">
+        <div className="px-6 py-5 border-b border-border flex justify-between items-center bg-background/50">
+          <h3 className="text-lg font-bold text-text">Active Campaigns</h3>
+          <Link to="/email/campaigns" className="text-primary hover:text-primary-dark text-sm font-bold flex items-center gap-1 transition-colors">
             View all
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="9 18 15 12 9 6"/></svg>
           </Link>
@@ -197,16 +197,16 @@ const Dashboard = () => {
         {!stats.recentCampaigns?.length ? (
           <div className="py-16 text-center">
             <p className="text-6xl mb-4">📭</p>
-            <p className="font-bold text-white text-lg mb-2">No campaigns yet</p>
-            <p className="text-slate-400 text-sm mb-6">Create your first campaign to start automated email outreach.</p>
-            <Link to="/email/campaigns" className="px-6 py-3 bg-[#F57C20] hover:bg-orange-600 text-white font-bold rounded-xl shadow-lg transition-colors">
+            <p className="font-bold text-text text-lg mb-2">No campaigns yet</p>
+            <p className="text-text-muted text-sm mb-6">Create your first campaign to start automated email outreach.</p>
+            <Link to="/email/campaigns" className="px-6 py-3 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl shadow-lg transition-colors">
               Create Campaign
             </Link>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-300">
-              <thead className="text-xs uppercase bg-white/5 text-slate-400 font-bold border-b border-white/10">
+            <table className="w-full text-left text-sm text-text">
+              <thead className="text-xs uppercase bg-background text-text-muted font-bold border-b border-border">
                 <tr>
                   <th className="px-6 py-4 font-semibold">Campaign</th>
                   <th className="px-6 py-4 font-semibold">Target Contacts</th>
@@ -217,7 +217,7 @@ const Dashboard = () => {
                   <th className="px-6 py-4 font-semibold">Progress</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-border">
                 {stats.recentCampaigns.map((c, i) => {
                   const pct = c.stats.totalContacts > 0
                     ? Math.round((c.stats.totalSent / c.stats.totalContacts) * 100)
@@ -228,25 +228,25 @@ const Dashboard = () => {
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.8 + (i * 0.05) }}
                       key={c._id}
-                      className="hover:bg-white/5 transition-colors"
+                      className="hover:bg-background/50 transition-colors"
                     >
-                      <td className="px-6 py-4 font-bold text-white max-w-[160px] truncate">{c.name}</td>
-                      <td className="px-6 py-4 font-bold text-slate-400">{c.stats.totalContacts}</td>
-                      <td className="px-6 py-4 text-emerald-400 font-bold">{c.stats.totalSent}</td>
-                      <td className="px-6 py-4 text-red-400 font-bold">{c.stats.failed}</td>
-                      <td className="px-6 py-4 text-blue-400 font-bold">{c.stats.replies || 0}</td>
+                      <td className="px-6 py-4 font-bold text-text max-w-[160px] truncate">{c.name}</td>
+                      <td className="px-6 py-4 font-bold text-text-muted">{c.stats.totalContacts}</td>
+                      <td className="px-6 py-4 text-status-success font-bold">{c.stats.totalSent}</td>
+                      <td className="px-6 py-4 text-status-danger font-bold">{c.stats.failed}</td>
+                      <td className="px-6 py-4 text-status-info font-bold">{c.stats.replies || 0}</td>
                       <td className="px-6 py-4"><StatusBadge status={c.status} /></td>
                       <td className="px-6 py-4 min-w-[150px]">
                         <div className="flex items-center gap-3">
-                          <div className="w-full bg-[#374151] rounded-full h-2">
+                          <div className="w-full bg-border rounded-full h-2">
                             <motion.div 
                               initial={{ width: 0 }}
                               animate={{ width: `${pct}%` }}
                               transition={{ duration: 1 }}
-                              className="bg-gradient-to-r from-[#F57C20] to-orange-400 h-2 rounded-full" 
+                              className="bg-primary h-2 rounded-full" 
                             />
                           </div>
-                          <span className="text-xs font-bold text-slate-400">{pct}%</span>
+                          <span className="text-xs font-bold text-text-muted">{pct}%</span>
                         </div>
                       </td>
                     </motion.tr>

@@ -225,62 +225,62 @@ export default function EmailCreateCampaign() {
       
       {/* Header */}
       <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-[linear-gradient(to_right,#F57C20,#f59e0b)]">
+        <h1 className="text-3xl font-bold text-primary-dark">
           Create Email Campaign
         </h1>
-        <p className="text-slate-400 mt-2">Follow the steps to configure and launch your campaign.</p>
+        <p className="text-text-muted mt-2">Follow the steps to configure and launch your campaign.</p>
       </div>
 
       {/* Progress Bar */}
       <div className="flex items-center justify-center mb-10">
         {[1, 2, 3, 4, 5].map((i) => (
           <div key={i} className="flex items-center">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-colors ${step >= i ? 'bg-[#F57C20] text-white shadow-lg shadow-orange-500/30' : 'bg-[#1f2937] text-slate-500'}`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-colors ${step >= i ? 'bg-primary text-white shadow-lg' : 'bg-background text-text-muted border border-border'}`}>
               {step > i ? <Icons.Check /> : i}
             </div>
             {i < 5 && (
-              <div className={`w-16 h-1 mx-2 rounded ${step > i ? 'bg-[#F57C20]' : 'bg-[#1f2937]'}`} />
+              <div className={`w-16 h-1 mx-2 rounded ${step > i ? 'bg-primary' : 'bg-border'}`} />
             )}
           </div>
         ))}
       </div>
 
       {/* Main Content Area */}
-      <div className="bg-[#1f2937] border border-white/5 rounded-3xl p-8 shadow-2xl relative overflow-hidden min-h-[400px]">
+      <div className="bg-card border border-border rounded-3xl p-8 shadow-2xl relative overflow-hidden min-h-[400px]">
         <AnimatePresence mode="wait">
           
           {/* STEP 1: TEMPLATE */}
           {step === STEPS.TEMPLATE && (
             <motion.div key="step1" variants={slideVariants} initial="initial" animate="enter" exit="exit" transition={{ duration: 0.3 }} className="space-y-6">
-              <h2 className="text-2xl font-bold text-white mb-6">Step 1: Choose Template</h2>
+              <h2 className="text-2xl font-bold text-text mb-6">Step 1: Choose Template</h2>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Campaign Name</label>
-                  <input type="text" value={campaignName} onChange={e => setCampaignName(e.target.value)} className="w-full bg-[#374151] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#F57C20]" placeholder="e.g. Summer Sale 2026" />
+                  <label className="block text-sm font-medium text-text mb-2">Campaign Name</label>
+                  <input type="text" value={campaignName} onChange={e => setCampaignName(e.target.value)} className="w-full bg-background border border-border rounded-xl px-4 py-3 text-text focus:outline-none focus:border-primary transition-colors" placeholder="e.g. Summer Sale 2026" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Subject Line</label>
-                  <input type="text" value={campaignSubject} onChange={e => setCampaignSubject(e.target.value)} className="w-full bg-[#374151] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#F57C20]" placeholder="Will default to template subject if empty" />
+                  <label className="block text-sm font-medium text-text mb-2">Subject Line</label>
+                  <input type="text" value={campaignSubject} onChange={e => setCampaignSubject(e.target.value)} className="w-full bg-background border border-border rounded-xl px-4 py-3 text-text focus:outline-none focus:border-primary transition-colors" placeholder="Will default to template subject if empty" />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                 {templates.map(t => (
-                  <div key={t._id} onClick={() => setSelectedTemplate(t)} className={`relative p-5 rounded-2xl cursor-pointer border-2 transition-all ${selectedTemplate?._id === t._id ? 'border-[#F57C20] bg-[#F57C20]/10' : 'border-transparent bg-white/5 hover:bg-white/10'}`}>
-                    <h3 className="font-bold text-white text-lg truncate">{t.name}</h3>
-                    <p className="text-sm text-slate-400 mt-1 truncate">{t.subject}</p>
+                  <div key={t._id} onClick={() => setSelectedTemplate(t)} className={`relative p-5 rounded-2xl cursor-pointer border-2 transition-all ${selectedTemplate?._id === t._id ? 'border-primary bg-primary/5' : 'border-border bg-background hover:border-primary/50'}`}>
+                    <h3 className="font-bold text-text text-lg truncate">{t.name}</h3>
+                    <p className="text-sm text-text-muted mt-1 truncate">{t.subject}</p>
                     {selectedTemplate?._id === t._id && (
-                      <div className="absolute top-3 right-3 text-[#F57C20]">
+                      <div className="absolute top-3 right-3 text-primary">
                         <Icons.Check />
                       </div>
                     )}
                   </div>
                 ))}
                 {templates.length === 0 && (
-                  <div className="col-span-1 md:col-span-3 text-center py-10 bg-white/5 rounded-2xl border border-white/5">
-                    <div className="text-slate-400 mb-4">No Email Templates Found</div>
-                    <a href="/email/templates" className="px-6 py-2 bg-[#F57C20] hover:bg-orange-600 text-white font-medium rounded-xl inline-block transition-colors">
+                  <div className="col-span-1 md:col-span-3 text-center py-10 bg-background rounded-2xl border border-border">
+                    <div className="text-text-muted mb-4">No Email Templates Found</div>
+                    <a href="/email/templates" className="px-6 py-2 bg-primary hover:bg-primary-dark text-white font-medium rounded-xl inline-block transition-colors">
                       Create Template
                     </a>
                   </div>
@@ -292,24 +292,24 @@ export default function EmailCreateCampaign() {
           {/* STEP 2: SENDER */}
           {step === STEPS.SENDER && (
             <motion.div key="step2" variants={slideVariants} initial="initial" animate="enter" exit="exit" transition={{ duration: 0.3 }}>
-              <h2 className="text-2xl font-bold text-white mb-6">Step 2: Choose Sender</h2>
+              <h2 className="text-2xl font-bold text-text mb-6">Step 2: Choose Sender</h2>
               <div className="space-y-4 max-w-2xl mx-auto">
                 {senders.map((s, idx) => (
-                  <div key={idx} onClick={() => setSelectedSender(s)} className={`flex items-center justify-between p-5 rounded-2xl cursor-pointer border-2 transition-all ${selectedSender?.email === s.email ? 'border-[#F57C20] bg-[#F57C20]/10' : 'border-transparent bg-white/5 hover:bg-white/10'}`}>
+                  <div key={idx} onClick={() => setSelectedSender(s)} className={`flex items-center justify-between p-5 rounded-2xl cursor-pointer border-2 transition-all ${selectedSender?.email === s.email ? 'border-primary bg-primary/5' : 'border-border bg-background hover:border-primary/50'}`}>
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center text-xl text-slate-300 font-bold uppercase">
+                      <div className="w-12 h-12 rounded-full bg-border flex items-center justify-center text-xl text-text-muted font-bold uppercase">
                         {s.name.charAt(0)}
                       </div>
                       <div>
-                        <div className="font-bold text-white text-lg">{s.name}</div>
-                        <div className="text-sm text-slate-400">{s.email}</div>
+                        <div className="font-bold text-text text-lg">{s.name}</div>
+                        <div className="text-sm text-text-muted">{s.email}</div>
                       </div>
                     </div>
-                    {selectedSender?.email === s.email && <div className="text-[#F57C20]"><Icons.Check /></div>}
+                    {selectedSender?.email === s.email && <div className="text-primary"><Icons.Check /></div>}
                   </div>
                 ))}
                 {senders.length === 0 && (
-                  <div className="text-center text-slate-400 py-8">No senders configured. Please add them in Settings.</div>
+                  <div className="text-center text-text-muted py-8">No senders configured. Please add them in Settings.</div>
                 )}
               </div>
             </motion.div>
@@ -318,18 +318,18 @@ export default function EmailCreateCampaign() {
           {/* STEP 3: CONTACTS */}
           {step === STEPS.CONTACTS && (
             <motion.div key="step3" variants={slideVariants} initial="initial" animate="enter" exit="exit" transition={{ duration: 0.3 }} className="space-y-6">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-white/10 pb-6">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-border pb-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-white">Campaign Contacts</h2>
-                  <p className="text-slate-400 mt-1">Select from your CRM contacts to include in this campaign.</p>
+                  <h2 className="text-2xl font-bold text-text">Campaign Contacts</h2>
+                  <p className="text-text-muted mt-1">Select from your CRM contacts to include in this campaign.</p>
                 </div>
               </div>
 
-              <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-                <div className="p-4 border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="bg-background border border-border rounded-2xl overflow-hidden">
+                <div className="p-4 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
-                    <span className="text-slate-300 font-bold">{contacts.length} Contacts</span>
-                    <span className="text-[#F57C20] font-bold">{selectedContactIds.size} Selected</span>
+                    <span className="text-text font-bold">{contacts.length} Contacts</span>
+                    <span className="text-primary font-bold">{selectedContactIds.size} Selected</span>
                   </div>
                   <div className="flex gap-2">
                     <input 
@@ -337,31 +337,31 @@ export default function EmailCreateCampaign() {
                       placeholder="Search contacts..."
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      className="bg-[#374151] border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-[#F57C20]"
+                      className="bg-card border border-border rounded-lg px-3 py-1.5 text-sm text-text focus:outline-none focus:border-primary"
                     />
-                    <button onClick={selectAllFiltered} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg text-white transition-colors">Select All</button>
-                    <button onClick={unselectAllFiltered} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg text-white transition-colors">Unselect All</button>
+                    <button onClick={selectAllFiltered} className="text-xs bg-card border border-border hover:bg-background px-3 py-1.5 rounded-lg text-text transition-colors shadow-sm">Select All</button>
+                    <button onClick={unselectAllFiltered} className="text-xs bg-card border border-border hover:bg-background px-3 py-1.5 rounded-lg text-text transition-colors shadow-sm">Unselect All</button>
                   </div>
                 </div>
                 
-                <div className="max-h-64 overflow-y-auto custom-scrollbar bg-[#1f2937]">
+                <div className="max-h-64 overflow-y-auto custom-scrollbar bg-card">
                   {fetchingContacts ? (
-                    <div className="p-8 text-center text-slate-400">Loading contacts...</div>
+                    <div className="p-8 text-center text-text-muted">Loading contacts...</div>
                   ) : filteredContacts.length === 0 ? (
-                    <div className="p-8 text-center text-slate-400">No valid contacts found. Please add contacts to your CRM.</div>
+                    <div className="p-8 text-center text-text-muted">No valid contacts found. Please add contacts to your CRM.</div>
                   ) : (
-                    <ul className="divide-y divide-white/5">
+                    <ul className="divide-y divide-border">
                       {filteredContacts.map(c => (
-                        <li key={c._id} className={`flex items-center gap-3 p-3 hover:bg-white/5 cursor-pointer transition-colors ${selectedContactIds.has(c._id) ? 'bg-white/5' : ''}`} onClick={() => toggleContactSelection(c._id)}>
+                        <li key={c._id} className={`flex items-center gap-3 p-3 hover:bg-background/50 cursor-pointer transition-colors ${selectedContactIds.has(c._id) ? 'bg-primary/5' : ''}`} onClick={() => toggleContactSelection(c._id)}>
                           <input 
                             type="checkbox" 
                             checked={selectedContactIds.has(c._id)}
                             onChange={() => {}}
-                            className="w-4 h-4 rounded border-gray-500 bg-gray-700 text-[#F57C20] focus:ring-[#F57C20]"
+                            className="w-4 h-4 rounded border-border bg-background text-primary focus:ring-primary"
                           />
                           <div>
-                            <div className="text-white font-medium">{c.name || 'Unknown'}</div>
-                            <div className="text-slate-400 text-xs">{c.email} {c.companyName && `• ${c.companyName}`}</div>
+                            <div className="text-text font-medium">{c.name || 'Unknown'}</div>
+                            <div className="text-text-muted text-xs">{c.email} {c.companyName && `• ${c.companyName}`}</div>
                           </div>
                         </li>
                       ))}
@@ -376,29 +376,29 @@ export default function EmailCreateCampaign() {
           {/* STEP 4: PREVIEW */}
           {step === STEPS.PREVIEW && (
             <motion.div key="step4" variants={slideVariants} initial="initial" animate="enter" exit="exit" transition={{ duration: 0.3 }}>
-              <h2 className="text-2xl font-bold text-white mb-6">Step 4: Configure & Preview</h2>
+              <h2 className="text-2xl font-bold text-text mb-6">Step 4: Configure & Preview</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white/5 p-6 rounded-2xl border border-white/10">
-                  <h3 className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-4">Configuration</h3>
+                <div className="bg-background p-6 rounded-2xl border border-border">
+                  <h3 className="text-text-muted text-sm font-medium uppercase tracking-wider mb-4">Configuration</h3>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">Daily Sending Limit</label>
+                      <label className="block text-sm font-medium text-text mb-2">Daily Sending Limit</label>
                       <input 
                         type="number" 
                         defaultValue={100}
                         id="dailyLimit"
-                        className="w-full bg-[#374151] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#F57C20]" 
+                        className="w-full bg-card border border-border rounded-xl px-4 py-3 text-text focus:outline-none focus:border-primary transition-colors" 
                       />
                     </div>
                     <div>
-                      <span className="text-slate-300">Total Contacts Target:</span> <span className="text-white font-bold ml-2">{selectedContactIds.size === 0 ? 'All CRM Contacts' : selectedContactIds.size}</span>
+                      <span className="text-text-muted">Total Contacts Target:</span> <span className="text-text font-bold ml-2">{selectedContactIds.size === 0 ? 'All CRM Contacts' : selectedContactIds.size}</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-[#1f2937] p-6 rounded-2xl border border-white/10 flex flex-col">
-                  <h3 className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-4">Email Preview</h3>
-                  <div className="flex-1 bg-white p-4 rounded-xl text-black overflow-y-auto max-h-60 text-sm">
+                <div className="bg-background p-6 rounded-2xl border border-border flex flex-col">
+                  <h3 className="text-text-muted text-sm font-medium uppercase tracking-wider mb-4">Email Preview</h3>
+                  <div className="flex-1 bg-card border border-border p-4 rounded-xl text-text overflow-y-auto max-h-60 text-sm shadow-sm">
                     {selectedTemplate ? (
                       <div dangerouslySetInnerHTML={{ 
                         __html: selectedTemplate.htmlContent
@@ -409,7 +409,7 @@ export default function EmailCreateCampaign() {
                           .replace(/{{location}}/g, 'New York')
                       }} />
                     ) : (
-                      <p>No template selected.</p>
+                      <p className="text-text-muted">No template selected.</p>
                     )}
                   </div>
                 </div>
@@ -420,18 +420,18 @@ export default function EmailCreateCampaign() {
           {/* STEP 5: CONFIRM */}
           {step === STEPS.CONFIRM && (
             <motion.div key="step5" variants={slideVariants} initial="initial" animate="enter" exit="exit" transition={{ duration: 0.3 }} className="text-center py-10">
-              <div className="w-20 h-20 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-6">
+              <div className="w-20 h-20 bg-status-success/20 text-status-success rounded-full flex items-center justify-center mx-auto mb-6">
                 <Icons.Check />
               </div>
-              <h2 className="text-3xl font-bold text-white mb-4">Ready to Activate!</h2>
-              <p className="text-slate-400 mt-2 leading-relaxed max-w-md mx-auto">
+              <h2 className="text-3xl font-bold text-text mb-4">Ready to Activate!</h2>
+              <p className="text-text-muted mt-2 leading-relaxed max-w-md mx-auto">
                 Your campaign <strong>{campaignName}</strong> is ready to send.<br /><br />
                 Clicking "Activate Campaign" will add the selected recipients to the secure email queue. The CRM will automatically process and send the emails according to your configured daily sending limit.<br /><br />
                 Duplicate and unsubscribe protections are automatically enforced.
               </p>
               
               {submitError && (
-                <div className="p-4 bg-red-500/10 text-red-400 rounded-xl max-w-md mx-auto mb-8 border border-red-500/20 text-sm">
+                <div className="p-4 bg-status-danger/10 text-status-danger rounded-xl max-w-md mx-auto mt-8 border border-status-danger/20 text-sm">
                   {submitError}
                 </div>
               )}
@@ -441,15 +441,15 @@ export default function EmailCreateCampaign() {
           {/* SUCCESS MESSAGE IMPLICIT STEP */}
           {step === STEPS.CONFIRM + 1 && (
             <motion.div key="step6" variants={slideVariants} initial="initial" animate="enter" exit="exit" transition={{ duration: 0.3 }} className="text-center py-10">
-              <div className="w-20 h-20 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-6">
+              <div className="w-20 h-20 bg-status-success/20 text-status-success rounded-full flex items-center justify-center mx-auto mb-6">
                 <Icons.Check />
               </div>
-              <h2 className="text-3xl font-bold text-white mb-4">Campaign Activated!</h2>
-              <p className="text-emerald-400 font-bold max-w-md mx-auto mb-4">
+              <h2 className="text-3xl font-bold text-text mb-4">Campaign Activated!</h2>
+              <p className="text-status-success font-bold max-w-md mx-auto mb-4">
                 Recipients Queued: {submitResult?.queued} <br/>
                 Skipped (Unsubscribed/Invalid): {submitResult?.skipped}
               </p>
-              <p className="text-slate-400 max-w-md mx-auto mb-8">Redirecting to campaigns...</p>
+              <p className="text-text-muted max-w-md mx-auto mb-8">Redirecting to campaigns...</p>
             </motion.div>
           )}
 
@@ -461,7 +461,7 @@ export default function EmailCreateCampaign() {
         <button 
           onClick={() => setStep(s => Math.max(1, s - 1))} 
           disabled={step === 1 || submitting || step > STEPS.CONFIRM}
-          className={`px-6 py-3 rounded-xl font-medium transition-colors ${step === 1 || step > STEPS.CONFIRM ? 'opacity-0 pointer-events-none' : 'bg-white/10 text-white hover:bg-white/20'}`}
+          className={`px-6 py-3 rounded-xl font-medium transition-colors ${step === 1 || step > STEPS.CONFIRM ? 'opacity-0 pointer-events-none' : 'bg-card border border-border text-text hover:bg-background shadow-sm'}`}
         >
           Back
         </button>
@@ -470,7 +470,7 @@ export default function EmailCreateCampaign() {
           <button 
             onClick={handleNext}
             disabled={syncing || fetchingContacts}
-            className="px-8 py-3 bg-[#F57C20] hover:bg-orange-600 text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 transition-all flex items-center gap-2"
+            className="px-8 py-3 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl shadow-lg transition-all flex items-center gap-2"
           >
             Next Step <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
           </button>
@@ -478,7 +478,7 @@ export default function EmailCreateCampaign() {
           <button 
             onClick={handleSubmit}
             disabled={submitting}
-            className="px-10 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 transition-all text-lg"
+            className="px-10 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg transition-all text-lg"
           >
             {submitting ? 'Activating...' : 'Activate Campaign'}
           </button>

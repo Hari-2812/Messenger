@@ -38,29 +38,29 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#111827] px-4 py-12 sm:px-6 lg:px-8 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8 relative overflow-hidden">
       {/* Subtle Background Effects */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-full bg-gradient-to-b from-[#F57C20]/10 to-transparent blur-3xl -z-10 pointer-events-none" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-full bg-gradient-to-b from-primary/10 to-transparent blur-3xl -z-10 pointer-events-none" />
       
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="w-full max-w-md bg-[#1f2937] p-8 sm:p-10 rounded-3xl shadow-2xl border border-white/10"
+        className="w-full max-w-md bg-card p-8 sm:p-10 rounded-3xl shadow-2xl border border-border"
       >
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-gradient-to-br from-[#F57C20] to-[#f59e0b] shadow-lg mb-6">
-            <svg viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7 text-white">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-primary shadow-lg mb-6 text-white">
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7">
                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
             </svg>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-2 text-center">Welcome Back</h2>
-          <p className="text-slate-400 text-sm sm:text-base text-center">Sign in to your account</p>
+          <h2 className="text-2xl sm:text-3xl font-bold text-text tracking-tight mb-2 text-center">Welcome Back</h2>
+          <p className="text-text-muted text-sm sm:text-base text-center">Sign in to your account</p>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
           <div>
-            <label className="block text-sm font-semibold text-slate-300 mb-2">Email</label>
+            <label className="block text-sm font-semibold text-text mb-2">Email</label>
             <input
               type="email"
               autoComplete="email"
@@ -68,35 +68,35 @@ const Login = () => {
                 required: 'Email is required.',
                 pattern: { value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i, message: 'Please enter a valid email address.' }
               })}
-              className={`w-full bg-[#374151] border ${errors.email ? 'border-red-500' : 'border-white/10'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#F57C20] transition-colors`}
+              className={`w-full bg-background border ${errors.email ? 'border-status-danger' : 'border-border'} rounded-xl px-4 py-3 text-text focus:outline-none focus:border-primary transition-colors`}
               placeholder="you@example.com"
             />
-            {errors.email && <p className="mt-2 text-xs text-red-400">{errors.email.message}</p>}
+            {errors.email && <p className="mt-2 text-xs text-status-danger">{errors.email.message}</p>}
           </div>
 
           <div>
             <div className="flex justify-between items-center mb-2">
-              <label className="block text-sm font-semibold text-slate-300">Password</label>
+              <label className="block text-sm font-semibold text-text">Password</label>
             </div>
             <div className="relative">
               <input
                 type={showPass ? 'text' : 'password'}
                 autoComplete="current-password"
                 {...register('password', { required: 'Password is required.' })}
-                className={`w-full bg-[#374151] border ${errors.password ? 'border-red-500' : 'border-white/10'} rounded-xl px-4 py-3 pr-12 text-white focus:outline-none focus:border-[#F57C20] transition-colors`}
+                className={`w-full bg-background border ${errors.password ? 'border-status-danger' : 'border-border'} rounded-xl px-4 py-3 pr-12 text-text focus:outline-none focus:border-primary transition-colors`}
                 placeholder="••••••••"
               />
               <button
                 type="button"
                 onClick={() => setShowPass(!showPass)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-text transition-colors"
                 tabIndex={-1}
                 aria-label="Toggle password visibility"
               >
                 {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
-            {errors.password && <p className="mt-2 text-xs text-red-400">{errors.password.message}</p>}
+            {errors.password && <p className="mt-2 text-xs text-status-danger">{errors.password.message}</p>}
           </div>
 
           <div className="flex items-center justify-between mt-2">
@@ -105,13 +105,13 @@ const Login = () => {
                 type="checkbox"
                 id="remember"
                 {...register('remember')}
-                className="w-4 h-4 text-[#F57C20] border-white/20 rounded focus:ring-[#F57C20] bg-[#374151]"
+                className="w-4 h-4 text-primary border-border rounded focus:ring-primary bg-background"
               />
-              <label htmlFor="remember" className="ml-2 text-sm text-slate-400 cursor-pointer">
+              <label htmlFor="remember" className="ml-2 text-sm text-text-muted cursor-pointer">
                 Remember me
               </label>
             </div>
-            <Link to="/forgot-password" className="text-sm text-[#F57C20] hover:text-orange-400 font-medium transition-colors">
+            <Link to="/forgot-password" className="text-sm text-primary hover:text-primary-dark font-medium transition-colors">
               Forgot password?
             </Link>
           </div>
@@ -121,7 +121,7 @@ const Login = () => {
             whileTap={{ scale: 0.99 }}
             type="submit"
             disabled={submitting}
-            className="w-full bg-[#F57C20] hover:bg-orange-600 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-orange-500/20 transition-all flex justify-center items-center gap-2 mt-2 disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-3.5 px-4 rounded-xl shadow-lg transition-all flex justify-center items-center gap-2 mt-2 disabled:opacity-70 disabled:cursor-not-allowed"
           >
             {submitting ? (
               <>
@@ -138,9 +138,9 @@ const Login = () => {
         </form>
 
         <div className="mt-8 text-center">
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-text-muted">
             Don't have an account?{' '}
-            <Link to="/register" className="text-[#F57C20] font-bold hover:text-orange-400 transition-colors">
+            <Link to="/register" className="text-primary font-bold hover:text-primary-dark transition-colors">
               Register
             </Link>
           </p>

@@ -92,42 +92,41 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#111827] px-4 py-12 sm:px-6 lg:px-8 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8 relative overflow-hidden">
       {/* Subtle Background Effects */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-full bg-gradient-to-b from-[#F57C20]/10 to-transparent blur-3xl -z-10 pointer-events-none" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-full bg-gradient-to-b from-primary/10 to-transparent blur-3xl -z-10 pointer-events-none" />
       
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="w-full max-w-md bg-[#1f2937] p-8 sm:p-10 rounded-3xl shadow-2xl border border-white/10 my-8"
+        className="w-full max-w-md bg-card p-8 sm:p-10 rounded-3xl shadow-2xl border border-border my-8"
       >
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-gradient-to-br from-[#F57C20] to-[#f59e0b] shadow-lg mb-6">
-            <svg viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7 text-white">
-               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-primary shadow-lg mb-6 text-white">
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7">
+              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
             </svg>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-2 text-center">Create your account</h2>
-          <p className="text-slate-400 text-sm sm:text-base text-center">Start managing your email campaigns.</p>
+          <h2 className="text-2xl sm:text-3xl font-bold text-text tracking-tight mb-2 text-center">Create Account</h2>
+          <p className="text-text-muted text-sm sm:text-base text-center">Join Omni CRM today</p>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
           <div>
-            <label className="block text-sm font-semibold text-slate-300 mb-2">Full Name</label>
+            <label className="block text-sm font-semibold text-text mb-2">Full Name</label>
             <input
-              {...register('name', { 
-                required: 'Name is required.',
-                validate: value => value.trim().length > 1 || 'Name is too short.'
-              })}
-              className={`w-full bg-[#374151] border ${errors.name ? 'border-red-500' : 'border-white/10'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#F57C20] transition-colors`}
-              placeholder="Enter your full name"
+              type="text"
+              autoComplete="name"
+              {...register('name', { required: 'Name is required.' })}
+              className={`w-full bg-background border ${errors.name ? 'border-status-danger' : 'border-border'} rounded-xl px-4 py-3 text-text focus:outline-none focus:border-primary transition-colors`}
+              placeholder="John Doe"
             />
-            {errors.name && <p className="mt-2 text-xs text-red-400">{errors.name.message}</p>}
+            {errors.name && <p className="mt-2 text-xs text-status-danger">{errors.name.message}</p>}
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-300 mb-2">Email</label>
+            <label className="block text-sm font-semibold text-text mb-2">Email</label>
             <input
               type="email"
               autoComplete="email"
@@ -135,41 +134,35 @@ const Register = () => {
                 required: 'Email is required.',
                 pattern: { value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i, message: 'Please enter a valid email address.' }
               })}
-              className={`w-full bg-[#374151] border ${errors.email ? 'border-red-500' : 'border-white/10'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#F57C20] transition-colors`}
-              placeholder="Enter your email address"
+              className={`w-full bg-background border ${errors.email ? 'border-status-danger' : 'border-border'} rounded-xl px-4 py-3 text-text focus:outline-none focus:border-primary transition-colors`}
+              placeholder="you@example.com"
             />
-            {errors.email && <p className="mt-2 text-xs text-red-400">{errors.email.message}</p>}
+            {errors.email && <p className="mt-2 text-xs text-status-danger">{errors.email.message}</p>}
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-300 mb-2">Password</label>
+            <label className="block text-sm font-semibold text-text mb-2">Password</label>
             <div className="relative">
               <input
                 type={showPass ? 'text' : 'password'}
                 autoComplete="new-password"
-                {...register('password', {
+                {...register('password', { 
                   required: 'Password is required.',
-                  minLength: { value: 8, message: 'Minimum 8 characters.' },
-                  pattern: {
-                    value: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
-                    message: 'Password does not meet the required security rules.'
-                  }
+                  minLength: { value: 6, message: 'Password must be at least 6 characters.' }
                 })}
-                className={`w-full bg-[#374151] border ${errors.password ? 'border-red-500' : 'border-white/10'} rounded-xl px-4 py-3 pr-12 text-white focus:outline-none focus:border-[#F57C20] transition-colors`}
-                placeholder="Create a password"
+                className={`w-full bg-background border ${errors.password ? 'border-status-danger' : 'border-border'} rounded-xl px-4 py-3 pr-12 text-text focus:outline-none focus:border-primary transition-colors`}
+                placeholder="••••••••"
               />
               <button
                 type="button"
                 onClick={() => setShowPass(!showPass)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-text transition-colors"
                 tabIndex={-1}
-                aria-label="Toggle password visibility"
               >
                 {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
-            {errors.password && <p className="mt-2 text-xs text-red-400">{errors.password.message}</p>}
-            {!errors.password && passwordValue && <PasswordStrengthMeter password={passwordValue} />}
+            {errors.password && <p className="mt-2 text-xs text-status-danger">{errors.password.message}</p>}
           </div>
 
           <motion.button
@@ -177,7 +170,7 @@ const Register = () => {
             whileTap={{ scale: 0.99 }}
             type="submit"
             disabled={submitting}
-            className="w-full bg-[#F57C20] hover:bg-orange-600 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-orange-500/20 transition-all flex justify-center items-center gap-2 mt-6 disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-3.5 px-4 rounded-xl shadow-lg transition-all flex justify-center items-center gap-2 mt-6 disabled:opacity-70 disabled:cursor-not-allowed"
           >
             {submitting ? (
               <>
@@ -194,10 +187,10 @@ const Register = () => {
         </form>
 
         <div className="mt-8 text-center">
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-text-muted">
             Already have an account?{' '}
-            <Link to="/login" className="text-[#F57C20] font-bold hover:text-orange-400 transition-colors">
-              Sign in
+            <Link to="/login" className="text-primary font-bold hover:text-primary-dark transition-colors">
+              Sign In
             </Link>
           </p>
         </div>
