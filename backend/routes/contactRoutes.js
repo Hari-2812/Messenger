@@ -18,13 +18,14 @@ const router = express.Router();
 router.use(protect);
 
 // Static routes first — must precede /:id to avoid conflicts
+router.post('/bulk-delete', bulkDeleteContacts);
+router.delete('/bulk-delete', bulkDeleteContacts);
 router.get('/', getContacts);
 router.post('/', createContact);
 router.post('/import', upload.single('file'), importContacts);
 router.post('/bulk-import', bulkImportContacts);
 router.post('/sync-all', protect, syncAllContacts);
 router.post('/:id/sync-retry', protect, retrySyncContact);
-router.post('/bulk-delete', bulkDeleteContacts);
 router.put('/:id', updateContact);
 router.delete('/:id', deleteContact);
 

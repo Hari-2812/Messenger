@@ -13,11 +13,11 @@ const Sidebar = ({ open, onClose, collapsed, onToggleCollapse }) => {
     <motion.aside 
       initial={false}
       animate={{ width: collapsed ? 80 : 260 }}
-      className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-white/10 bg-primary text-white shadow-2xl transition-all duration-300 lg:static lg:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
+      className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-border bg-card shadow-2xl transition-all duration-300 lg:static lg:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
     >
-      <div className={`flex items-center justify-between border-b border-white/10 ${collapsed ? 'px-4 py-4' : 'px-5 py-5'}`}>
+      <div className={`flex items-center justify-between border-b border-border ${collapsed ? 'px-4 py-4' : 'px-5 py-5'}`}>
         <div className={`flex items-center gap-3 min-w-0 ${collapsed ? 'justify-center' : ''}`}>
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-[#FF8F3D] shadow-lg shadow-accent/20 flex-shrink-0">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary-dark shadow-md flex-shrink-0">
             <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 text-white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
           </div>
           <AnimatePresence>
@@ -28,8 +28,8 @@ const Sidebar = ({ open, onClose, collapsed, onToggleCollapse }) => {
                 exit={{ opacity: 0, width: 0 }}
                 className="min-w-0 overflow-hidden"
               >
-                <h1 className="truncate text-base font-bold tracking-tight">Techzon CRM</h1>
-                <p className="text-[11px] text-primary-300 font-medium tracking-wide">ENTERPRISE EDITION</p>
+                <h1 className="truncate text-base font-bold tracking-tight text-text">Techzon CRM</h1>
+                <p className="text-[11px] text-text-muted font-medium tracking-wide">ENTERPRISE EDITION</p>
               </motion.div>
             )}
           </AnimatePresence>
@@ -39,9 +39,9 @@ const Sidebar = ({ open, onClose, collapsed, onToggleCollapse }) => {
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-6 custom-scrollbar">
         {navItems.map((item, i) => (
           <div key={item.to}>
-            {item.divider && <div className="my-4 border-t border-white/5 mx-2" />}
-            <NavLink to={item.to} end={item.to === '/'} className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${isActive ? 'bg-primary-hover text-white shadow-md' : 'text-primary-300 hover:bg-white/5 hover:text-white'}`}>
-              <span className={`flex-shrink-0 transition-colors ${item.to === window.location.pathname ? 'text-accent' : ''}`}>{item.icon}</span>
+            {item.divider && <div className="my-4 border-t border-border mx-2" />}
+            <NavLink to={item.to} end={item.to === '/'} className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${isActive ? 'bg-primary/10 text-primary shadow-sm' : 'text-text-muted hover:bg-background hover:text-text'}`}>
+              <span className={`flex-shrink-0 transition-colors ${item.to === window.location.pathname ? 'text-primary' : 'text-text-muted'}`}>{item.icon}</span>
               <AnimatePresence>
                 {!collapsed && (
                   <motion.span 
@@ -59,8 +59,8 @@ const Sidebar = ({ open, onClose, collapsed, onToggleCollapse }) => {
         ))}
       </nav>
 
-      <div className={`border-t border-white/10 px-4 py-5 ${collapsed ? 'text-center' : ''}`}>
-        <button onClick={onToggleCollapse} className="w-full flex items-center justify-center gap-2 p-2 rounded-xl border border-white/10 hover:bg-white/5 text-primary-300 hover:text-white transition-colors hidden lg:flex">
+      <div className={`border-t border-border px-4 py-5 ${collapsed ? 'text-center' : ''}`}>
+        <button onClick={onToggleCollapse} className="w-full flex items-center justify-center gap-2 p-2 rounded-xl border border-border hover:bg-background text-text-muted hover:text-text transition-colors hidden lg:flex">
            {collapsed ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg> : <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M11 19l-7-7 7-7M19 19l-7-7 7-7"/></svg> <span className="text-sm font-medium">Collapse</span></>}
         </button>
       </div>

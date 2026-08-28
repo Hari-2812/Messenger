@@ -176,7 +176,7 @@ const Profile = () => {
               <div className="pt-2">
                 <button
                   type="submit"
-                  className="w-full bg-gray-900 hover:bg-gray-800 text-white font-medium py-2.5 px-4 rounded-xl transition-all"
+                  className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-2.5 px-4 rounded-xl transition-all shadow-md"
                 >
                   Update Password
                 </button>

@@ -189,12 +189,15 @@ const deleteContact = async (req, res) => {
 };
 
 // @desc    Bulk delete contacts
-// @route   POST /api/contacts/bulk-delete
+// @route   POST /api/contacts/bulk-delete and DELETE /api/contacts/bulk-delete
 const bulkDeleteContacts = async (req, res) => {
   const { ids } = req.body;
   if (!Array.isArray(ids) || ids.length === 0) {
     return res.status(400).json({ success: false, message: 'No contact IDs provided' });
   }
+
+  console.log('[Contacts] Bulk delete requested');
+  console.log('[Contacts] Selected contact count:', ids.length);
 
   // Use req.user._id if authentication is applied
   const filter = { _id: { $in: ids }, isDeleted: { $ne: true } };
@@ -206,6 +209,8 @@ const bulkDeleteContacts = async (req, res) => {
     const contacts = await Contact.find(filter);
     
     if (contacts.length === 0) {
+      console.log('[Contacts] Bulk delete completed');
+      console.log('[Contacts] Deleted contacts: 0');
       return res.json({ success: true, message: 'No valid contacts found or unauthorized', deletedCount: 0 });
     }
 
@@ -216,6 +221,9 @@ const bulkDeleteContacts = async (req, res) => {
       { _id: { $in: contactIdsToDelete } },
       { $set: { isDeleted: true, deletedAt: new Date() } }
     );
+
+    console.log('[Contacts] Bulk delete completed');
+    console.log('[Contacts] Deleted contacts:', result.modifiedCount);
 
     res.json({ 
       success: true,
