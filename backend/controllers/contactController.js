@@ -206,7 +206,7 @@ const bulkDeleteContacts = async (req, res) => {
     const contacts = await Contact.find(filter);
     
     if (contacts.length === 0) {
-      return res.status(404).json({ success: false, message: 'No valid contacts found or unauthorized' });
+      return res.json({ success: true, message: 'No valid contacts found or unauthorized', deletedCount: 0 });
     }
 
     const contactIdsToDelete = contacts.map(c => c._id);
