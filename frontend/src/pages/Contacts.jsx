@@ -141,21 +141,70 @@ const Contacts = () => {
       return;
     }
 
-    const rows = importText.split('\n').filter(r => r.trim());
+    const rawRows = importText.split(/\r?\n/).filter(r => r.trim());
+    if (rawRows.length === 0) {
+      toast.error('No valid contacts to import');
+      return;
+    }
+
+    const parseCSVRow = (text, delimiter) => {
+      let parts = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        let char = text[i];
+        if (char === '"' && text[i+1] === '"') {
+          current += '"';
+          i++;
+        } else if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === delimiter && !inQuotes) {
+          parts.push(current);
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      parts.push(current);
+      return parts;
+    };
+
+    const firstRow = rawRows[0];
+    const delimiter = firstRow.includes('\t') ? '\t' : (firstRow.includes(';') ? ';' : (firstRow.includes(',') ? ',' : null));
+
+    let startIndex = 0;
+    let nameIndex = 0;
+    let emailIndex = 1; 
+
+    if (delimiter) {
+      const headerParts = parseCSVRow(firstRow, delimiter).map(h => h.trim().toLowerCase().replace(/[^a-z]/g, ''));
+      const foundName = headerParts.findIndex(h => h.includes('name'));
+      const foundEmail = headerParts.findIndex(h => h.includes('email') || h === 'emailaddress');
+
+      if (foundName !== -1 || foundEmail !== -1) {
+        startIndex = 1;
+        nameIndex = foundName !== -1 ? foundName : 0;
+        emailIndex = foundEmail !== -1 ? foundEmail : 1;
+      }
+    }
+
     const previewData = [];
     let validCount = 0;
     let invalidCount = 0;
 
-    rows.forEach(row => {
-      const delimiter = row.includes('\t') ? '\t' : (row.includes(',') ? ',' : (row.includes(';') ? ';' : null));
+    for (let i = startIndex; i < rawRows.length; i++) {
+      const row = rawRows[i];
       let name = '';
       let email = '';
 
       if (delimiter) {
-        const parts = row.split(delimiter);
-        if (parts.length >= 2) {
-          name = parts[0].trim();
-          email = parts[1].trim();
+        const parts = parseCSVRow(row, delimiter);
+        if (parts.length > Math.max(nameIndex, emailIndex)) {
+          name = parts[nameIndex]?.trim() || '';
+          email = parts[emailIndex]?.trim() || '';
+        } else if (parts.length >= 2) {
+          name = parts[0]?.trim() || '';
+          email = parts[1]?.trim() || '';
         } else if (parts.length === 1 && parts[0].includes('@')) {
           email = parts[0].trim();
           name = email.split('@')[0];
@@ -184,13 +233,13 @@ const Contacts = () => {
         email,
         isValid: !!isValidEmail
       });
-    });
+    }
 
     setImportPreview({
       rows: previewData,
       valid: validCount,
       invalid: invalidCount,
-      total: rows.length
+      total: rawRows.length - startIndex
     });
   };
 
