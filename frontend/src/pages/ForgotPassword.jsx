@@ -35,13 +35,15 @@ const ForgotPassword = () => {
       <div className="absolute top-[-15%] left-[-5%] w-[40%] h-[40%] bg-indigo-200/50 rounded-full blur-[80px]"></div>
       <div className="absolute bottom-[-15%] right-[-5%] w-[40%] h-[40%] bg-emerald-200/40 rounded-full blur-[80px]"></div>
 
-      <div className="w-full max-w-md bg-white rounded-3xl p-8 sm:p-10 shadow-xl border border-gray-100 relative z-10 animate-fade-in">
+      <div className="bg-card w-full max-w-md rounded-2xl shadow-xl border border-border p-8 z-10 relative">
         
         {/* Icon & Title */}
-        <div className="flex flex-col items-center mb-8 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-5">
-            <KeyRound size={32} />
+        <div className="flex justify-center mb-6">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-primary shadow-lg text-white">
+            <Mail size={28} />
           </div>
+        </div>
+        <div className="flex flex-col items-center mb-8 text-center">
           <h2 className="text-2xl font-bold text-gray-900">Forgot Password?</h2>
           <p className="text-gray-500 mt-2 text-sm">
             {isSubmitted 
@@ -73,7 +75,7 @@ const ForgotPassword = () => {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-4 rounded-xl shadow-lg shadow-indigo-600/30 transition-all transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none flex justify-center items-center gap-2"
+              className="w-full bg-primary hover:bg-primary-hover text-white font-medium py-3 px-4 rounded-xl shadow-lg transition-all transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none flex justify-center items-center gap-2"
             >
               {submitting ? (
                 <>
@@ -96,10 +98,10 @@ const ForgotPassword = () => {
           </div>
         )}
 
-        <div className="mt-8 pt-6 border-t border-gray-100 text-center">
-          <Link to="/login" className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-indigo-600 transition-colors font-medium">
-            <ArrowLeft size={16} />
-            Back to log in
+        <div className="mt-6 text-center text-sm text-text-muted">
+          Remembered your password?{' '}
+          <Link to="/login" className="text-primary font-semibold hover:text-primary-dark transition-colors">
+            Back to login
           </Link>
         </div>
       </div>

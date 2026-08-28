@@ -50,7 +50,7 @@ const ResetPassword = () => {
           </div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">Invalid Link</h2>
           <p className="text-gray-500 mb-6">The password reset link is invalid or has expired.</p>
-          <button onClick={() => navigate('/forgot-password')} className="bg-indigo-600 text-white px-6 py-2 rounded-xl">
+          <button onClick={() => navigate('/forgot-password')} className="bg-primary text-white px-6 py-2 rounded-xl">
             Request New Link
           </button>
         </div>
@@ -68,7 +68,7 @@ const ResetPassword = () => {
         
         {/* Icon & Title */}
         <div className="flex flex-col items-center mb-8 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-5">
+          <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-primary flex items-center justify-center mb-5">
             <Lock size={32} />
           </div>
           <h2 className="text-2xl font-bold text-gray-900">Set New Password</h2>
@@ -134,7 +134,7 @@ const ResetPassword = () => {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-4 rounded-xl shadow-lg shadow-indigo-600/30 transition-all transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none flex justify-center items-center gap-2 mt-4"
+            className="w-full bg-primary hover:bg-primary-hover text-white font-medium py-3 px-4 rounded-xl shadow-lg shadow-md transition-all transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none flex justify-center items-center gap-2 mt-4"
           >
             {submitting ? (
               <>

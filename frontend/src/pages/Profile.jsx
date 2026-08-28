@@ -49,7 +49,7 @@ const Profile = () => {
               </span>
             )}
           </div>
-          <button className="absolute bottom-0 right-0 bg-white p-1.5 rounded-full shadow-md text-gray-500 hover:text-indigo-600 transition-colors">
+          <button className="absolute bottom-0 right-0 bg-white p-1.5 rounded-full shadow-md text-gray-500 hover:text-primary transition-colors">
             <Camera size={16} />
           </button>
         </div>
@@ -128,7 +128,7 @@ const Profile = () => {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-xl shadow-md shadow-indigo-600/20 transition-all flex items-center gap-2 disabled:opacity-70"
+                  className="bg-primary hover:bg-primary-hover text-white font-medium py-2 px-6 rounded-xl shadow-md shadow-indigo-600/20 transition-all flex items-center gap-2 disabled:opacity-70"
                 >
                   {submitting ? 'Saving...' : 'Save Changes'}
                   {!submitting && <Save size={16} />}

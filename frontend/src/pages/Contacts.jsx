@@ -99,15 +99,30 @@ const Contacts = () => {
     try {
       const res = await contactsAPI.bulkDelete({ ids: Array.from(selectedIds) });
       
-      if (res.data.success || res.data.deletedCount > 0 || res.data.deleted > 0) {
-        const delCount = res.data.deletedCount || res.data.deleted;
-        toast.success(`${delCount} contacts deleted successfully.`, {
-          id: loadingToast,
-          duration: 4000
-        });
+      const delCount = res.data.deletedCount !== undefined ? res.data.deletedCount : res.data.deleted;
+      const reqCount = res.data.requestedCount || selectedIds.size;
+      
+      if (res.data.success && delCount > 0) {
+        if (delCount < reqCount) {
+          toast.success(`Deleted ${delCount} out of ${reqCount} contacts. Some contacts were invalid or already deleted.`, {
+            id: loadingToast,
+            duration: 5000,
+            icon: '⚠️'
+          });
+        } else {
+          toast.success(`${delCount} contacts deleted successfully.`, {
+            id: loadingToast,
+            duration: 4000
+          });
+        }
         setSelectedIds(new Set());
         setShowDeleteConfirm(false);
         // Soft refresh current page
+        fetchContacts(page, search);
+      } else if (res.data.success && delCount === 0) {
+        toast.error('No valid records were found to delete. They may have already been deleted.', { id: loadingToast, duration: 5000 });
+        setSelectedIds(new Set());
+        setShowDeleteConfirm(false);
         fetchContacts(page, search);
       } else {
         toast.error(res.data.message || 'Failed to delete contacts', { id: loadingToast });

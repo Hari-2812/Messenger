@@ -199,11 +199,14 @@ const bulkDeleteContacts = async (req, res) => {
   console.log('[Contacts] Bulk delete requested');
   console.log('[Contacts] Selected contact count:', ids.length);
 
-  // Use req.user._id if authentication is applied
-  const filter = { _id: { $in: ids }, isDeleted: { $ne: true } };
-  if (req.user && req.user._id) {
-    filter.userId = req.user._id; // Enforce ownership if userId is tracked
+  const validIds = ids.filter(id => /^[0-9a-fA-F]{24}$/.test(id));
+  
+  if (validIds.length === 0) {
+    return res.json({ success: true, message: 'No valid ObjectIds provided', deletedCount: 0, requestedCount: ids.length });
   }
+
+  // Remove userId filter entirely because Contact schema is global to the CRM instance
+  const filter = { _id: { $in: validIds }, isDeleted: { $ne: true } };
 
   try {
     const contacts = await Contact.find(filter);
@@ -211,7 +214,7 @@ const bulkDeleteContacts = async (req, res) => {
     if (contacts.length === 0) {
       console.log('[Contacts] Bulk delete completed');
       console.log('[Contacts] Deleted contacts: 0');
-      return res.json({ success: true, message: 'No valid contacts found or unauthorized', deletedCount: 0 });
+      return res.json({ success: true, message: 'No matching valid contacts found', deletedCount: 0, requestedCount: ids.length });
     }
 
     const contactIdsToDelete = contacts.map(c => c._id);
@@ -228,7 +231,8 @@ const bulkDeleteContacts = async (req, res) => {
     res.json({ 
       success: true,
       message: `Successfully deleted ${result.modifiedCount} contacts`,
-      deletedCount: result.modifiedCount
+      deletedCount: result.modifiedCount,
+      requestedCount: ids.length
     });
   } catch (error) {
     console.error('[Contact Bulk Delete] Error:', error);

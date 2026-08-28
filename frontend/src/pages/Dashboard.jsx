@@ -4,29 +4,26 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
 /* ── KPI Stat Card ─────────────────────────────────────────────────── */
-const KpiCard = ({ title, value, sub, icon, gradient, trend, delay = 0 }) => (
+const KpiCard = ({ title, value, sub, icon, trend, delay = 0 }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.5, delay }}
     whileHover={{ y: -4, scale: 1.01 }}
-    className="rounded-2xl p-6 text-white relative overflow-hidden shadow-elevated"
-    style={{ background: gradient }}
+    className="rounded-2xl p-6 bg-card border border-border relative overflow-hidden shadow-sm hover:shadow-md transition-shadow"
   >
-    <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-white/10 translate-x-12 -translate-y-12 backdrop-blur-3xl" />
-    <div className="absolute bottom-0 right-8 w-20 h-20 rounded-full bg-white/5 translate-y-8 backdrop-blur-2xl" />
     <div className="relative z-10">
       <div className="flex items-start justify-between mb-4">
-        <span className="text-4xl filter drop-shadow-md">{icon}</span>
+        <span className="text-4xl text-primary drop-shadow-sm">{icon}</span>
         {trend !== undefined && (
-          <span className="text-xs bg-white/20 px-2.5 py-1 rounded-full font-semibold shadow-sm backdrop-blur-md">
+          <span className={`text-xs px-2.5 py-1 rounded-full font-semibold shadow-sm ${trend >= 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-red-50 text-red-600 border border-red-100'}`}>
             {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}%
           </span>
         )}
       </div>
-      <p className="text-white/80 text-xs font-bold uppercase tracking-wider mb-1.5">{title}</p>
-      <p className="text-4xl font-extrabold leading-none tracking-tight">{value ?? '—'}</p>
-      {sub && <p className="text-white/70 text-xs mt-2 font-medium">{sub}</p>}
+      <p className="text-text-muted text-xs font-bold uppercase tracking-wider mb-1.5">{title}</p>
+      <p className="text-4xl font-extrabold leading-none tracking-tight text-text">{value ?? '—'}</p>
+      {sub && <p className="text-text-muted text-xs mt-2 font-medium">{sub}</p>}
     </div>
   </motion.div>
 );
@@ -150,7 +147,6 @@ const Dashboard = () => {
           title="Total Contacts"
           value={stats.totalContacts?.toLocaleString()}
           icon="👥"
-          gradient="linear-gradient(135deg, #0F172A 0%, #1E293B 100%)"
           sub="In your CRM"
         />
         <KpiCard
@@ -158,7 +154,6 @@ const Dashboard = () => {
           title="Active Campaigns"
           value={stats.totalCampaigns?.toLocaleString()}
           icon="🚀"
-          gradient="linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)"
           sub="Currently running"
         />
         <KpiCard
@@ -166,7 +161,6 @@ const Dashboard = () => {
           title="Emails Sent Today"
           value={stats.emailsSentToday?.toLocaleString()}
           icon="📤"
-          gradient="linear-gradient(135deg, #16A34A 0%, #15803d 100%)"
           sub="Across all campaigns"
         />
         <KpiCard
@@ -174,7 +168,6 @@ const Dashboard = () => {
           title="Pending Queue"
           value={stats.pending?.toLocaleString()}
           icon="⏳"
-          gradient="linear-gradient(135deg, #0EA5E9 0%, #0369a1 100%)"
           sub="Waiting for next window"
         />
       </div>
