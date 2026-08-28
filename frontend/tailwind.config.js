@@ -5,15 +5,17 @@ export default {
     extend: {
       colors: {
         primary: {
-          DEFAULT: '#241252',
-          hover: '#31206B',
+          DEFAULT: '#2563EB',
+          dark: '#1D4ED8',
+          light: '#EFF6FF',
+          hover: '#1D4ED8', // matching dark for hover states
         },
         secondary: {
-          DEFAULT: '#31206B',
+          DEFAULT: '#64748B',
         },
         accent: {
-          DEFAULT: '#F57C20',
-          hover: '#FF8F3D',
+          DEFAULT: '#2563EB', // using primary as accent for consistency
+          hover: '#1D4ED8',
         },
         background: {
           DEFAULT: '#F8FAFC',
@@ -22,16 +24,17 @@ export default {
           DEFAULT: '#FFFFFF',
         },
         text: {
-          DEFAULT: '#111827',
-          muted: '#6B7280',
+          DEFAULT: '#0F172A',
+          muted: '#64748B',
         },
         border: {
-          DEFAULT: '#E5E7EB',
+          DEFAULT: '#E2E8F0',
         },
         status: {
           success: '#16A34A',
           danger: '#DC2626',
-          warning: '#D97706',
+          warning: '#F59E0B',
+          info: '#0EA5E9',
         }
       },
       fontFamily: {
