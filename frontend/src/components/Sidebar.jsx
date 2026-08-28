@@ -28,7 +28,7 @@ const Sidebar = ({ open, onClose, collapsed, onToggleCollapse }) => {
                 exit={{ opacity: 0, width: 0 }}
                 className="min-w-0 overflow-hidden"
               >
-                <h1 className="truncate text-base font-bold tracking-tight">Omni CRM</h1>
+                <h1 className="truncate text-base font-bold tracking-tight">Techzon CRM</h1>
                 <p className="text-[11px] text-primary-300 font-medium tracking-wide">ENTERPRISE EDITION</p>
               </motion.div>
             )}
