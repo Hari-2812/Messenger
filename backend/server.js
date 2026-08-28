@@ -258,6 +258,11 @@ const startServer = async () => {
 
       startDeliveryTimeoutJob();
       initCronJobs();
+
+      console.log('\n[EmailProvider] Provider: Brevo');
+      console.log(`[EmailProvider] API Key: ${process.env.BREVO_API_KEY ? 'configured' : 'missing'}`);
+      console.log(`[EmailProvider] Sender Email: ${process.env.EMAIL_FROM ? 'configured' : 'missing'}`);
+      console.log(`[EmailProvider] Sender Name: ${process.env.EMAIL_FROM_NAME ? 'configured' : 'missing'}\n`);
     });
   } catch (error) {
     console.error(`[Startup] Failed: ${error.message}`);

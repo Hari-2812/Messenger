@@ -254,6 +254,82 @@ const resumeCampaign = async (req, res) => {
   }
 };
 
+// @desc    Get queue status
+// @route   GET /api/email-campaigns/queue-status
+const getQueueStatus = async (req, res) => {
+  try {
+    const pending = await EmailLog.countDocuments({ status: 'pending' });
+    const processing = await EmailLog.countDocuments({ status: 'sending' });
+    const sent = await EmailLog.countDocuments({ status: 'sent' });
+    const failed = await EmailLog.countDocuments({ status: 'failed' });
+    const scheduled = await EmailCampaign.countDocuments({ status: 'Scheduled' });
+    
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const sentToday = await EmailLog.countDocuments({
+      status: 'sent',
+      sentAt: { $gte: startOfDay }
+    });
+    
+    const dailyLimit = 300; // Ideally fetch from config
+
+    res.json({
+      pending,
+      processing,
+      sent,
+      failed,
+      scheduled,
+      sentToday,
+      dailyLimit,
+      remainingToday: Math.max(0, dailyLimit - sentToday)
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Test email provider
+// @route   POST /api/email-campaigns/test-email
+const sendTestEmail = async (req, res) => {
+  try {
+    const { to, subject, htmlContent } = req.body;
+    if (!to) return res.status(400).json({ message: 'Recipient is required' });
+
+    const { sendEmail } = require('../services/brevo.service');
+    const result = await sendEmail({
+      to,
+      subject: subject || 'Test Email',
+      htmlContent: htmlContent || '<p>This is a test email.</p>'
+    });
+
+    if (result.success) {
+      res.json({
+        success: true,
+        recipient: to,
+        provider: 'brevo',
+        messageId: result.messageId,
+        timestamp: new Date()
+      });
+    } else {
+      res.status(500).json({ message: 'Provider error: ' + result.error });
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};
+
+// @desc    Check backend health
+// @route   GET /api/email-campaigns/health
+const checkHealth = async (req, res) => {
+  res.json({
+    provider: 'brevo',
+    configured: !!process.env.BREVO_API_KEY,
+    queue: true,
+    processor: true,
+    dailyLimit: 300
+  });
+};
+
 module.exports = {
   getCampaigns,
   getDashboardStats,
@@ -261,5 +337,8 @@ module.exports = {
   getCampaignById,
   deleteCampaign,
   pauseCampaign,
-  resumeCampaign
+  resumeCampaign,
+  getQueueStatus,
+  sendTestEmail,
+  checkHealth
 };

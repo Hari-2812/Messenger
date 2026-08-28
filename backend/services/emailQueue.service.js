@@ -20,6 +20,47 @@ const processEmailQueue = async () => {
       console.log(`[Queue] Recovered ${recovered.modifiedCount} stuck emails.`);
     }
 
+    // 0.5 Activate scheduled campaigns
+    const scheduledCampaigns = await EmailCampaign.find({
+      status: 'Scheduled',
+      scheduledAt: { $lte: new Date() }
+    });
+
+    if (scheduledCampaigns.length > 0) {
+      console.log(`[EmailQueue] Found ${scheduledCampaigns.length} scheduled campaigns to activate.`);
+      const Contact = require('../models/Contact');
+      
+      for (const campaign of scheduledCampaigns) {
+        try {
+          const validContacts = await Contact.find({
+            _id: { $in: campaign.recipients },
+            email: { $ne: null, $ne: '', $type: 'string' },
+            status: { $ne: 'Unsubscribed' }
+          }).select('_id name email');
+
+          if (validContacts.length > 0) {
+            const emailLogsToInsert = validContacts.map(contact => ({
+              campaignId: campaign._id,
+              contactId: contact._id,
+              recipientName: contact.name || '',
+              recipientEmail: contact.email,
+              status: 'pending',
+              retryCount: 0
+            }));
+            await EmailLog.insertMany(emailLogsToInsert, { ordered: false });
+            console.log(`[EmailQueue] Created ${emailLogsToInsert.length} jobs for scheduled campaign ${campaign._id}`);
+          }
+          
+          campaign.status = 'Active';
+          await campaign.save();
+        } catch (err) {
+          console.error(`[EmailQueue] Failed to activate scheduled campaign ${campaign._id}`, err);
+          campaign.status = 'Failed';
+          await campaign.save();
+        }
+      }
+    }
+
     // 1. Calculate how many emails have been sent today
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -29,29 +70,34 @@ const processEmailQueue = async () => {
       sentAt: { $gte: startOfDay }
     });
 
-    console.log(`Emails sent today: ${sentTodayCount} / ${DAILY_LIMIT}`);
+    console.log(`[EmailQueue] Daily limit: ${DAILY_LIMIT}`);
+    console.log(`[EmailQueue] Emails sent today: ${sentTodayCount}`);
 
     const allowance = DAILY_LIMIT - sentTodayCount;
+    console.log(`[EmailQueue] Remaining capacity: ${allowance}`);
+
     if (allowance <= 0) {
-      console.log('Daily limit reached. Queue processor stopping for today.');
+      console.log('[EmailQueue] Daily limit reached. Queue processor stopping for today.');
       return;
     }
 
     // 2. Fetch pending emails up to the allowance
-    const pendingEmails = await EmailLog.find({
-      status: 'pending',
-      $or: [{ retryCount: { $lt: 3 } }, { retryCount: { $exists: false } }, { retryCount: null }]
+    // Use a simple query to ensure we don't miss jobs due to retryCount type casting
+    let pendingEmails = await EmailLog.find({
+      status: 'pending'
     })
     .sort({ createdAt: 1 })
-    .limit(allowance)
     .populate('campaignId');
 
+    // Filter retryCount in memory for safety
+    pendingEmails = pendingEmails.filter(log => log.retryCount == null || log.retryCount < 3).slice(0, allowance);
+
     if (pendingEmails.length === 0) {
-      console.log('No pending emails in the queue.');
+      console.log('[EmailQueue] No pending emails in the queue.');
       return;
     }
 
-    console.log(`Processing ${pendingEmails.length} pending emails...`);
+    console.log(`[EmailQueue] Pending jobs found: ${pendingEmails.length}`);
 
     // We'll keep track of campaigns touched to update their status later
     const touchedCampaignIds = new Set();
@@ -71,7 +117,9 @@ const processEmailQueue = async () => {
           continue;
         }
 
-        console.log(`[Queue] Processing log ${log._id} for recipient ${log.recipientEmail}`);
+        console.log(`[EmailQueue] Processing job: ${log._id}`);
+        console.log(`[EmailQueue] Campaign: ${log.campaignId?._id}`);
+        console.log(`[EmailQueue] Recipient: ${log.recipientEmail}`);
         
         const campaign = log.campaignId;
         if (!campaign) {
@@ -99,7 +147,9 @@ const processEmailQueue = async () => {
           content = content.replace(regex, value);
         }
 
-        console.log(`[Queue] Calling Brevo sendEmail for ${log.recipientEmail}...`);
+        console.log(`[EmailQueue] Sending through Brevo`);
+        console.log(`[EmailProvider] Brevo request started`);
+        
         const result = await sendEmail({
           to: log.recipientEmail,
           subject: campaign.subject,
@@ -116,7 +166,9 @@ const processEmailQueue = async () => {
           throw new Error(result.error || 'Unknown Brevo Error');
         }
 
-        console.log(`[Queue] Successfully sent to ${log.recipientEmail}. MessageId: ${result.messageId}`);
+        console.log(`[EmailProvider] Brevo accepted email`);
+        console.log(`Message ID: ${result.messageId}`);
+        console.log(`[EmailQueue] Job marked SENT`);
         // Update Log
         log.status = 'sent';
         log.messageId = result.messageId;
@@ -134,8 +186,9 @@ const processEmailQueue = async () => {
         const logToUpdate = await EmailLog.findById(pendingDoc._id);
         if (!logToUpdate) continue;
         
-        console.error(`[Queue] Failed to send email to ${logToUpdate.recipientEmail}:`);
-        console.error(`- Error message: ${err.message}`);
+        console.log(`[EmailProvider] Brevo send failed`);
+        console.log(`Error: ${err.message}`);
+        console.log(`[EmailQueue] Job marked FAILED`);
         if (err.response) {
           console.error(`- Status: ${err.response.status}`);
           console.error(`- Data: ${JSON.stringify(err.response.data)}`);

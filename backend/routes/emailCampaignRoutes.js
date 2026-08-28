@@ -8,7 +8,10 @@ const {
   getCampaignById,
   deleteCampaign,
   pauseCampaign,
-  resumeCampaign
+  resumeCampaign,
+  getQueueStatus,
+  sendTestEmail,
+  checkHealth
 } = require('../controllers/emailCampaign.controller');
 const { protect } = require('../middleware/auth');
 
@@ -18,6 +21,9 @@ router.use(protect); // Require auth for all email campaign routes
 // You could apply `admin` middleware here if they strictly need to be admin. We will just use `protect` for now unless `admin` is fully integrated everywhere.
 
 router.get('/dashboard-stats', getDashboardStats);
+router.get('/queue-status', getQueueStatus);
+router.get('/health', checkHealth);
+router.post('/test-email', sendTestEmail);
 
 router.route('/')
   .get(getCampaigns)
