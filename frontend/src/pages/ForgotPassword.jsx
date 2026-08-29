@@ -30,22 +30,21 @@ const ForgotPassword = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6 relative overflow-hidden">
-      {/* Decorative background shapes */}
-      <div className="absolute top-[-15%] left-[-5%] w-[40%] h-[40%] bg-indigo-200/50 rounded-full blur-[80px]"></div>
-      <div className="absolute bottom-[-15%] right-[-5%] w-[40%] h-[40%] bg-emerald-200/40 rounded-full blur-[80px]"></div>
+    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Subtle Background Effects */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-full bg-gradient-to-b from-primary/10 to-transparent blur-3xl -z-10 pointer-events-none" />
 
-      <div className="bg-card w-full max-w-md rounded-2xl shadow-xl border border-border p-8 z-10 relative">
+      <div className="bg-card w-full max-w-md rounded-3xl shadow-2xl border border-border p-8 z-10 relative">
         
         {/* Icon & Title */}
         <div className="flex justify-center mb-6">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-primary shadow-lg text-white">
-            <Mail size={28} />
+          <div className="flex h-16 items-center justify-center">
+            <img src="/techzon-logo.png" alt="Techzon CRM" className="h-full object-contain" />
           </div>
         </div>
         <div className="flex flex-col items-center mb-8 text-center">
-          <h2 className="text-2xl font-bold text-gray-900">Forgot Password?</h2>
-          <p className="text-gray-500 mt-2 text-sm">
+          <h2 className="text-2xl sm:text-3xl font-bold text-text tracking-tight mb-2">Forgot Password?</h2>
+          <p className="text-text-muted text-sm sm:text-base">
             {isSubmitted 
               ? "We've sent a password reset link to your email. Please check your inbox."
               : "No worries, we'll send you reset instructions."
@@ -56,7 +55,7 @@ const ForgotPassword = () => {
         {!isSubmitted ? (
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
             <div className="form-group">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+              <label className="block text-sm font-medium text-text mb-1">Email Address</label>
               <div className="relative">
                 <input
                   type="email"

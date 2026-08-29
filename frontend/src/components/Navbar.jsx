@@ -1,12 +1,7 @@
 import { useAuth } from '../context/AuthContext';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const BellIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
-    <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" />
-  </svg>
-);
+import { Bell, Menu, LogOut, Settings, User } from 'lucide-react';
 
 const Navbar = ({ title, onMenuClick, onToggleCollapse, collapsed }) => {
   const { user, logout } = useAuth();
@@ -20,7 +15,7 @@ const Navbar = ({ title, onMenuClick, onToggleCollapse, collapsed }) => {
       <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <button type="button" onClick={onMenuClick} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border text-text-muted hover:bg-background lg:hidden transition-colors">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+            <Menu className="w-5 h-5" />
           </button>
           
           <motion.div 
@@ -40,8 +35,8 @@ const Navbar = ({ title, onMenuClick, onToggleCollapse, collapsed }) => {
             className="btn-icon relative" 
             title="Notifications"
           >
-            <BellIcon />
-            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full border border-white bg-status-danger" />
+            <Bell className="w-5 h-5" />
+            <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </motion.button>
 
           <div className="hidden h-7 w-px bg-border sm:block" />

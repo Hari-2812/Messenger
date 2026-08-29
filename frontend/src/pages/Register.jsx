@@ -103,13 +103,11 @@ const Register = () => {
         className="w-full max-w-md bg-card p-8 sm:p-10 rounded-3xl shadow-2xl border border-border my-8"
       >
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-primary shadow-lg mb-6 text-white">
-            <svg viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7">
-              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-            </svg>
+          <div className="flex h-16 items-center justify-center mb-6">
+            <img src="/techzon-logo.png" alt="Techzon CRM" className="h-full object-contain" />
           </div>
           <h2 className="text-2xl sm:text-3xl font-bold text-text tracking-tight mb-2 text-center">Create Account</h2>
-          <p className="text-text-muted text-sm sm:text-base text-center">Join Omni CRM today</p>
+          <p className="text-text-muted text-sm sm:text-base text-center">Join Techzon CRM today</p>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>

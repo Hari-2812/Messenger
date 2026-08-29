@@ -49,10 +49,8 @@ const Login = () => {
         className="w-full max-w-md bg-card p-8 sm:p-10 rounded-3xl shadow-2xl border border-border"
       >
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-primary shadow-lg mb-6 text-white">
-            <svg viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7">
-               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
-            </svg>
+          <div className="flex h-16 items-center justify-center mb-6">
+            <img src="/techzon-logo.png" alt="Techzon CRM" className="h-full object-contain" />
           </div>
           <h2 className="text-2xl sm:text-3xl font-bold text-text tracking-tight mb-2 text-center">Welcome Back</h2>
           <p className="text-text-muted text-sm sm:text-base text-center">Sign in to your account</p>

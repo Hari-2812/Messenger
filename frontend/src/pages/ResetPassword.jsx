@@ -43,14 +43,14 @@ const ResetPassword = () => {
 
   if (!token) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
-        <div className="w-full max-w-md bg-white rounded-3xl p-8 text-center shadow-xl border border-gray-100">
+      <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8 relative overflow-hidden">
+        <div className="w-full max-w-md bg-card rounded-3xl p-8 text-center shadow-xl border border-border">
           <div className="w-16 h-16 rounded-full bg-red-50 text-red-500 mx-auto flex items-center justify-center mb-4">
             <Lock size={32} />
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Invalid Link</h2>
-          <p className="text-gray-500 mb-6">The password reset link is invalid or has expired.</p>
-          <button onClick={() => navigate('/forgot-password')} className="bg-primary text-white px-6 py-2 rounded-xl">
+          <h2 className="text-xl font-bold text-text mb-2">Invalid Link</h2>
+          <p className="text-text-muted mb-6">The password reset link is invalid or has expired.</p>
+          <button onClick={() => navigate('/forgot-password')} className="bg-primary text-white px-6 py-2 rounded-xl hover:opacity-90">
             Request New Link
           </button>
         </div>
@@ -59,20 +59,19 @@ const ResetPassword = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6 relative overflow-hidden">
-      {/* Decorative background shapes */}
-      <div className="absolute top-[-15%] left-[-5%] w-[40%] h-[40%] bg-indigo-200/50 rounded-full blur-[80px]"></div>
-      <div className="absolute bottom-[-15%] right-[-5%] w-[40%] h-[40%] bg-emerald-200/40 rounded-full blur-[80px]"></div>
+    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Subtle Background Effects */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-full bg-gradient-to-b from-primary/10 to-transparent blur-3xl -z-10 pointer-events-none" />
 
-      <div className="w-full max-w-md bg-white rounded-3xl p-8 sm:p-10 shadow-xl border border-gray-100 relative z-10 animate-fade-in">
+      <div className="w-full max-w-md bg-card rounded-3xl p-8 sm:p-10 shadow-2xl border border-border relative z-10 animate-fade-in">
         
         {/* Icon & Title */}
         <div className="flex flex-col items-center mb-8 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-primary flex items-center justify-center mb-5">
-            <Lock size={32} />
+          <div className="flex h-16 items-center justify-center mb-5">
+            <img src="/techzon-logo.png" alt="Techzon CRM" className="h-full object-contain" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900">Set New Password</h2>
-          <p className="text-gray-500 mt-2 text-sm">
+          <h2 className="text-2xl font-bold text-text">Set New Password</h2>
+          <p className="text-text-muted mt-2 text-sm">
             Please enter your new password below.
           </p>
         </div>

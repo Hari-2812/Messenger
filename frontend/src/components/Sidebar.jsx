@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { LayoutDashboard, Users, FileText, Send } from 'lucide-react';
 
 const navItems = [
-  { to: '/', label: 'Dashboard', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg> },
-  { to: '/contacts', label: 'Contacts', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></svg> },
-  { to: '/templates', label: 'Templates', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg> },
-  { to: '/campaigns', label: 'Campaigns', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M22 2L11 13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg> },
+  { to: '/', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
+  { to: '/contacts', label: 'Contacts', icon: <Users className="w-5 h-5" /> },
+  { to: '/templates', label: 'Templates', icon: <FileText className="w-5 h-5" /> },
+  { to: '/campaigns', label: 'Campaigns', icon: <Send className="w-5 h-5" /> },
 ];
 
 const Sidebar = ({ open, onClose, collapsed, onToggleCollapse }) => {
@@ -17,8 +18,8 @@ const Sidebar = ({ open, onClose, collapsed, onToggleCollapse }) => {
     >
       <div className={`flex items-center justify-between border-b border-border ${collapsed ? 'px-4 py-4' : 'px-5 py-5'}`}>
         <div className={`flex items-center gap-3 min-w-0 ${collapsed ? 'justify-center' : ''}`}>
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary-dark shadow-md flex-shrink-0">
-            <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 text-white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+          <div className="flex h-10 w-10 items-center justify-center flex-shrink-0">
+            <img src="/techzon-logo.png" alt="Techzon CRM" className="h-full w-full object-contain" />
           </div>
           <AnimatePresence>
             {!collapsed && (
