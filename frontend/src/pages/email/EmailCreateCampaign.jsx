@@ -400,14 +400,20 @@ export default function EmailCreateCampaign() {
                   <h3 className="text-text-muted text-sm font-medium uppercase tracking-wider mb-4">Email Preview</h3>
                   <div className="flex-1 bg-card border border-border p-4 rounded-xl text-text overflow-y-auto max-h-60 text-sm shadow-sm">
                     {selectedTemplate ? (
-                      <div dangerouslySetInnerHTML={{ 
-                        __html: selectedTemplate.htmlContent
-                          .replace(/{{name}}/g, 'Arun')
-                          .replace(/{{company}}/g, 'ABC Interiors')
-                          .replace(/{{website}}/g, 'abcinteriors.com')
-                          .replace(/{{industry}}/g, 'Design')
-                          .replace(/{{location}}/g, 'New York')
-                      }} />
+                      (() => {
+                        const previewContact = contacts.find(c => selectedContactIds.has(c._id));
+                        const previewName = previewContact?.name?.trim() || 'Student';
+                        return (
+                          <div dangerouslySetInnerHTML={{ 
+                            __html: selectedTemplate.htmlContent
+                              .replace(/{{name}}/g, previewName)
+                              .replace(/{{company}}/g, previewContact?.companyName || 'ABC Interiors')
+                              .replace(/{{website}}/g, 'abcinteriors.com')
+                              .replace(/{{industry}}/g, 'Design')
+                              .replace(/{{location}}/g, 'New York')
+                          }} />
+                        );
+                      })()
                     ) : (
                       <p className="text-text-muted">No template selected.</p>
                     )}

@@ -134,8 +134,10 @@ const processEmailQueue = async () => {
 
         // Process template variables
         let content = campaign.htmlContent;
+        const recipientName = log.recipientName?.trim() || 'Student';
+        
         const variables = {
-          name: log.recipientName || '',
+          name: recipientName,
           email: log.recipientEmail || '',
           phone: log.customFields?.Phone || '',
           college: log.customFields?.College || '',
@@ -146,6 +148,10 @@ const processEmailQueue = async () => {
           const regex = new RegExp(`{{${key}}}`, 'gi');
           content = content.replace(regex, value);
         }
+
+        console.log(`[EmailQueue] Recipient: ${log.recipientEmail}`);
+        console.log(`[EmailQueue] Recipient name: ${recipientName}`);
+        console.log(`[EmailQueue] Personalization applied: true`);
 
         console.log(`[EmailQueue] Sending through Brevo`);
         console.log(`[EmailProvider] Brevo request started`);
