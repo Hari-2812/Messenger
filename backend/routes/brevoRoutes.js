@@ -5,6 +5,7 @@ const brevoController = require('../controllers/brevo.controller');
 
 router.post('/connect', protect, brevoController.connectBrevo);
 router.get('/status', protect, brevoController.getBrevoStatus);
+router.post('/test', protect, brevoController.testBrevoConnection);
 router.delete('/disconnect', protect, brevoController.disconnectBrevo);
 
 module.exports = router;

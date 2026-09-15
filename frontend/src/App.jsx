@@ -12,6 +12,7 @@ import Contacts from './pages/Contacts';
 // Email Pages (now the primary CRM features)
 import EmailCreateCampaign from './pages/email/EmailCreateCampaign';
 import EmailTemplates from './pages/email/EmailTemplates';
+import Settings from './pages/Settings';
 
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
           <Route path="/templates" element={<EmailTemplates />} />
           <Route path="/campaigns" element={<EmailCreateCampaign />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/settings/*" element={<Settings />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

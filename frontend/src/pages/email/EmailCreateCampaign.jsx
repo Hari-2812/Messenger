@@ -58,7 +58,8 @@ export default function EmailCreateCampaign() {
   
   // Data States
   const [templates, setTemplates] = useState([]);
-  const [senders, setSenders] = useState([]);
+  const [brevoStatus, setBrevoStatus] = useState(null);
+  const [brevoLoading, setBrevoLoading] = useState(true);
   const [toast, setToast] = useState(null);
   
   const showToast = (msg, type = 'success') => setToast({ msg, type });
@@ -66,7 +67,6 @@ export default function EmailCreateCampaign() {
   
   // Selections
   const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [selectedSender, setSelectedSender] = useState(null);
   const [campaignName, setCampaignName] = useState('');
   const [campaignSubject, setCampaignSubject] = useState('');
   
@@ -87,7 +87,7 @@ export default function EmailCreateCampaign() {
   // Fetch initial data
   useEffect(() => {
     fetchTemplates();
-    fetchSenders();
+    fetchBrevoStatus();
   }, []);
 
   const fetchTemplates = async () => {
@@ -100,17 +100,15 @@ export default function EmailCreateCampaign() {
     }
   };
 
-  const fetchSenders = async () => {
+  const fetchBrevoStatus = async () => {
     try {
-      const { data } = await settingsAPI.get();
-      if (data.settings && data.settings.senders) {
-        setSenders(data.settings.senders);
-        if (data.settings.senders.length > 0) {
-          setSelectedSender(data.settings.senders[0]);
-        }
-      }
+      setBrevoLoading(true);
+      const res = await axios.get('/api/brevo/status', { withCredentials: true });
+      setBrevoStatus(res.data);
     } catch (err) {
-      console.error('Failed to load senders', err);
+      console.error('Failed to load brevo status', err);
+    } finally {
+      setBrevoLoading(false);
     }
   };
 
@@ -172,7 +170,7 @@ export default function EmailCreateCampaign() {
       if (!campaignSubject) setCampaignSubject(selectedTemplate.subject);
     }
     if (step === STEPS.SENDER) {
-      if (!selectedSender) return alert('Select a sender');
+      if (!brevoStatus?.connected) return alert('You must connect a Brevo account in Settings before sending a campaign.');
     }
     if (step === STEPS.CONTACTS) {
       if (selectedContactIds.size === 0) {
@@ -193,8 +191,8 @@ export default function EmailCreateCampaign() {
       const payload = {
         name: campaignName,
         subject: campaignSubject || selectedTemplate.subject,
-        senderName: selectedSender.name,
-        senderEmail: selectedSender.email,
+        senderName: brevoStatus.senderName,
+        senderEmail: brevoStatus.senderEmail,
         templateId: selectedTemplate._id,
         htmlContent: selectedTemplate.htmlContent,
         recipients: Array.from(selectedContactIds),
@@ -290,27 +288,39 @@ export default function EmailCreateCampaign() {
             </motion.div>
           )}
 
-          {/* STEP 2: SENDER */}
+          {/* STEP 2: SENDER VERIFICATION */}
           {step === STEPS.SENDER && (
             <motion.div key="step2" variants={slideVariants} initial="initial" animate="enter" exit="exit" transition={{ duration: 0.3 }}>
-              <h2 className="text-2xl font-bold text-text mb-6">Step 2: Choose Sender</h2>
+              <h2 className="text-2xl font-bold text-text mb-6">Step 2: Sender Verification</h2>
               <div className="space-y-4 max-w-2xl mx-auto">
-                {senders.map((s, idx) => (
-                  <div key={idx} onClick={() => setSelectedSender(s)} className={`flex items-center justify-between p-5 rounded-2xl cursor-pointer border-2 transition-all ${selectedSender?.email === s.email ? 'border-primary bg-primary/5' : 'border-border bg-background hover:border-primary/50'}`}>
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-full bg-border flex items-center justify-center text-xl text-text-muted font-bold uppercase">
-                        {s.name.charAt(0)}
+                {brevoLoading ? (
+                  <div className="text-center text-text-muted py-8">Checking connection...</div>
+                ) : brevoStatus?.connected ? (
+                  <div className="p-6 rounded-2xl border-2 border-primary bg-primary/5">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                        <Icons.Check />
                       </div>
                       <div>
-                        <div className="font-bold text-text text-lg">{s.name}</div>
-                        <div className="text-sm text-text-muted">{s.email}</div>
+                        <div className="font-bold text-text text-lg">{brevoStatus.senderName}</div>
+                        <div className="text-sm text-text-muted">{brevoStatus.senderEmail}</div>
                       </div>
                     </div>
-                    {selectedSender?.email === s.email && <div className="text-primary"><Icons.Check /></div>}
+                    <div className="text-sm font-semibold text-emerald-600 flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-lg inline-flex border border-emerald-200">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Connected via Brevo
+                    </div>
                   </div>
-                ))}
-                {senders.length === 0 && (
-                  <div className="text-center text-text-muted py-8">No senders configured. Please add them in Settings.</div>
+                ) : (
+                  <div className="text-center py-10 bg-white rounded-2xl border-2 border-dashed border-border shadow-sm">
+                    <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <X size={32} />
+                    </div>
+                    <h3 className="text-xl font-bold text-text mb-2">Brevo account not connected</h3>
+                    <p className="text-text-muted max-w-md mx-auto mb-6">Connect your Brevo account in Settings → Email Sending before starting a campaign.</p>
+                    <a href="/settings" className="px-6 py-3 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl transition-all shadow-md inline-block">
+                      Go to Email Settings
+                    </a>
+                  </div>
                 )}
               </div>
             </motion.div>

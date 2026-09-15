@@ -71,6 +71,35 @@ exports.getBrevoStatus = async (req, res) => {
   }
 };
 
+exports.testBrevoConnection = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('brevo');
+    if (!user || !user.brevo?.connected || !user.brevo.apiKeyEncrypted) {
+      return res.status(400).json({ message: 'Brevo account is not connected.' });
+    }
+
+    const { decrypt } = require('../utils/crypto');
+    const apiKey = decrypt(user.brevo.apiKeyEncrypted);
+
+    if (!apiKey) {
+      return res.status(401).json({ message: 'Invalid encrypted API key. Please reconnect.' });
+    }
+
+    const verifyRes = await axios.get('https://api.brevo.com/v3/account', {
+      headers: { 'api-key': apiKey }
+    });
+
+    if (verifyRes.status === 200) {
+      return res.json({ message: 'Brevo connection is working.' });
+    } else {
+      throw new Error('Unexpected response status');
+    }
+  } catch (error) {
+    console.error('Brevo test error:', error);
+    res.status(401).json({ message: 'Unable to connect to Brevo. Please reconnect your account.' });
+  }
+};
+
 exports.disconnectBrevo = async (req, res) => {
   try {
     await User.findByIdAndUpdate(req.user.id, {

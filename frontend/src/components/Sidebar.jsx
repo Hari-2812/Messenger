@@ -1,12 +1,17 @@
 import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Users, FileText, Send } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, Send, Settings, HelpCircle } from 'lucide-react';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
   { to: '/contacts', label: 'Contacts', icon: <Users className="w-5 h-5" /> },
   { to: '/templates', label: 'Templates', icon: <FileText className="w-5 h-5" /> },
   { to: '/campaigns', label: 'Campaigns', icon: <Send className="w-5 h-5" /> },
+];
+
+const bottomNavItems = [
+  { to: '/settings', label: 'Settings', icon: <Settings className="w-5 h-5" /> },
+  { to: '/help', label: 'Help & Support', icon: <HelpCircle className="w-5 h-5" /> },
 ];
 
 const Sidebar = ({ open, onClose, collapsed, onToggleCollapse }) => {
@@ -59,6 +64,26 @@ const Sidebar = ({ open, onClose, collapsed, onToggleCollapse }) => {
           </div>
         ))}
       </nav>
+
+      <div className="px-3 py-4 space-y-1">
+        {bottomNavItems.map((item) => (
+          <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${isActive ? 'bg-primary/10 text-primary shadow-sm' : 'text-text-muted hover:bg-background hover:text-text'}`}>
+            <span className={`flex-shrink-0 transition-colors ${item.to === window.location.pathname ? 'text-primary' : 'text-text-muted'}`}>{item.icon}</span>
+            <AnimatePresence>
+              {!collapsed && (
+                <motion.span 
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  className="truncate whitespace-nowrap"
+                >
+                  {item.label}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </NavLink>
+        ))}
+      </div>
 
       <div className={`border-t border-border px-4 py-5 ${collapsed ? 'text-center' : ''}`}>
         <button onClick={onToggleCollapse} className="w-full flex items-center justify-center gap-2 p-2 rounded-xl border border-border hover:bg-background text-text-muted hover:text-text transition-colors hidden lg:flex">
