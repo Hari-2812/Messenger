@@ -38,40 +38,43 @@ const getCampaigns = async (req, res) => {
 // @route   GET /api/email-campaigns/dashboard-stats
 const getDashboardStats = async (req, res) => {
   try {
-    const contactQuery = req.user?.role === 'admin' ? { email: { $ne: '' } } : { email: { $ne: '' }, userId: req.user._id };
+    const contactQuery = req.user?.role === 'admin' ? { isDeleted: { $ne: true }, email: { $ne: '' } } : { isDeleted: { $ne: true }, email: { $ne: '' }, userId: req.user._id };
     const totalContacts = await Contact.countDocuments(contactQuery);
     
     const campaignQuery = req.user?.role === 'admin' ? {} : { createdBy: req.user._id };
     const totalCampaigns = await EmailCampaign.countDocuments(campaignQuery);
     
-    // Find campaign IDs for this user
     const userCampaigns = await EmailCampaign.find(campaignQuery).select('_id');
     const userCampaignIds = userCampaigns.map(c => c._id);
 
-    // Emails sent today
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
-    
-    const emailsSentToday = await EmailLog.countDocuments({ 
-      campaignId: { $in: userCampaignIds },
-      status: 'sent', 
-      sentAt: { $gte: startOfDay, $lte: endOfDay } 
-    });
-
     // Aggregate stats directly from EmailLog
-    const delivered = await EmailLog.countDocuments({ campaignId: { $in: userCampaignIds }, status: { $in: ['sent', 'delivered'] } });
+    const delivered = await EmailLog.countDocuments({ campaignId: { $in: userCampaignIds }, status: 'sent' });
     const failed = await EmailLog.countDocuments({ campaignId: { $in: userCampaignIds }, status: { $in: ['failed', 'bounce'] } });
     const pending = await EmailLog.countDocuments({ campaignId: { $in: userCampaignIds }, status: { $in: ['pending', 'sending'] } });
 
-    // Recent campaigns
+    // Recent campaigns - fetch with full stats calculated or rely on the stored stats
+    // We will let the frontend calculate progress from c.stats (we'll ensure queue updates it)
     const recentCampaigns = await EmailCampaign.find(campaignQuery).sort({ createdAt: -1 }).limit(5);
+
+    // Email Usage logic
+    let emailsSentToday = 0;
+    let dailyLimit = 300;
+    let remainingToday = 300;
+    
+    if (req.user && req.user.brevo) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      // Note: If usageDate is not today, the queue handles reset, but we can safely report 0 sent today
+      emailsSentToday = req.user.brevo.usageDate === todayStr ? (req.user.brevo.emailsSentToday || 0) : 0;
+      dailyLimit = req.user.brevo.dailyLimit || 300;
+      remainingToday = Math.max(0, dailyLimit - emailsSentToday);
+    }
 
     res.json({
       totalContacts,
       totalCampaigns,
       emailsSentToday,
+      dailyLimit,
+      remainingToday,
       delivered,
       failed,
       pending,

@@ -178,7 +178,7 @@ const processEmailQueue = async () => {
           await log.save();
 
           await EmailCampaign.findByIdAndUpdate(campaign._id, {
-            $inc: { 'stats.delivered': 1 }
+            $inc: { 'stats.totalSent': 1, 'stats.pending': -1 }
           });
 
           // Increment user limit
@@ -201,7 +201,7 @@ const processEmailQueue = async () => {
              await logToUpdate.save();
              
              await EmailCampaign.findByIdAndUpdate(campaign._id, {
-               $inc: { 'stats.failed': 1 }
+               $inc: { 'stats.failed': 1, 'stats.pending': -1 }
              });
           }
         }

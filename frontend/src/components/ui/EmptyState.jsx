@@ -1,4 +1,6 @@
-const EmptyState = ({ icon = '📭', title, description, action }) => (
+import { Inbox } from 'lucide-react';
+
+const EmptyState = ({ icon = <Inbox size={48} strokeWidth={1} />, title, description, action }) => (
   <div className="empty-state">
     <div className="empty-state-icon">{icon}</div>
     <p className="font-semibold text-gray-700">{title}</p>

@@ -31,23 +31,22 @@ const KpiCard = ({ title, value, sub, icon, trend, delay = 0 }) => (
   </motion.div>
 );
 
-/* ── Status Badge ───────────────────────────────────────────────────── */
+/* ── StatusBadge ──────────────────────────────────────────────────────── */
 const StatusBadge = ({ status }) => {
   const map = {
-    Draft:     'badge bg-border text-text-muted',
-    Sending:   'badge bg-status-warning/10 text-status-warning',
-    Active:    'badge bg-accent/10 text-accent',
-    Completed: 'badge bg-status-success/10 text-status-success',
-    Scheduled: 'badge bg-accent/10 text-accent',
-    Paused:    'badge bg-status-warning/10 text-status-warning',
-    Failed:    'badge bg-status-danger/10 text-status-danger',
+    Draft: 'bg-gray-100 text-gray-600 border border-gray-200',
+    Sending: 'bg-blue-50 text-blue-600 border border-blue-200',
+    Active: 'bg-primary/10 text-primary border border-primary/20',
+    Completed: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+    Scheduled: 'bg-purple-50 text-purple-700 border border-purple-200',
+    Paused: 'bg-amber-50 text-amber-700 border border-amber-200',
+    Failed: 'bg-red-50 text-red-700 border border-red-200',
+    Completed_with_errors: 'bg-orange-50 text-orange-700 border border-orange-200',
+    'Partially Sent': 'bg-indigo-50 text-indigo-700 border border-indigo-200',
   };
   return (
-    <span className={`${map[status] || 'badge bg-border text-text-muted'} capitalize`}>
-      {status === 'Completed' && '✓ '}
-      {status === 'Active' && '⟳ '}
-      {status === 'Failed' && '✗ '}
-      {status}
+    <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${map[status] || 'bg-gray-100 text-gray-600 border border-gray-200'}`}>
+      {status.replace(/_/g, ' ')}
     </span>
   );
 };
@@ -144,7 +143,7 @@ const Dashboard = () => {
       </div>
 
       {/* ── KPI Cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
         <KpiCard
           delay={0.1}
           title="Total Contacts"
@@ -164,15 +163,44 @@ const Dashboard = () => {
           title="Emails Sent Today"
           value={stats.emailsSentToday?.toLocaleString()}
           icon={<Send size={24} />}
-          sub="Across all campaigns"
+          sub="Successful sends"
         />
         <KpiCard
           delay={0.4}
           title="Pending Queue"
           value={stats.pending?.toLocaleString()}
           icon={<Clock size={24} />}
-          sub="Waiting for next window"
+          sub="Waiting to send"
         />
+        
+        {/* Email Usage Widget */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.5 }}
+          className="rounded-2xl p-6 bg-white border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between"
+        >
+          <div>
+            <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Email Usage Today</p>
+            <div className="flex items-end gap-2">
+              <span className="text-3xl font-extrabold text-slate-800 leading-none">{stats.emailsSentToday || 0}</span>
+              <span className="text-slate-500 font-medium mb-1">/ {stats.dailyLimit || 300}</span>
+            </div>
+            
+            <div className="w-full bg-slate-100 rounded-full h-2 mt-4 mb-3">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min(100, ((stats.emailsSentToday || 0) / (stats.dailyLimit || 300)) * 100)}%` }}
+                transition={{ duration: 1 }}
+                className={`h-2 rounded-full ${((stats.emailsSentToday || 0) >= (stats.dailyLimit || 300)) ? 'bg-red-500' : 'bg-primary'}`} 
+              />
+            </div>
+          </div>
+          <div className="flex justify-between text-xs font-semibold">
+            <span className="text-slate-600">{stats.emailsSentToday || 0} Sent</span>
+            <span className="text-slate-600">{stats.remainingToday || 0} Remaining</span>
+          </div>
+        </motion.div>
       </div>
 
       {/* ── Recent Campaigns Table ── */}
@@ -217,26 +245,28 @@ const Dashboard = () => {
               </thead>
               <tbody className="divide-y divide-border">
                 {stats.recentCampaigns.map((c, i) => {
-                  const pct = c.stats.totalContacts > 0
-                    ? Math.round((c.stats.totalSent / c.stats.totalContacts) * 100)
-                    : 0;
+                  const targetContacts = c.stats?.totalContacts || 0;
+                  const totalSent = c.stats?.totalSent || c.stats?.delivered || 0; // fallback just in case
+                  const pending = c.stats?.pending || 0;
+                  const failed = c.stats?.failed || 0;
+                  const pct = targetContacts > 0 ? Math.round((totalSent / targetContacts) * 100) : 0;
+                  
                   return (
                     <motion.tr 
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.8 + (i * 0.05) }}
                       key={c._id}
-                      className="hover:bg-background/50 transition-colors"
+                      className="hover:bg-slate-50 transition-colors"
                     >
-                      <td className="px-6 py-4 font-bold text-text max-w-[160px] truncate">{c.name}</td>
-                      <td className="px-6 py-4 font-bold text-text-muted">{c.stats.totalContacts}</td>
-                      <td className="px-6 py-4 text-status-success font-bold">{c.stats.totalSent}</td>
-                      <td className="px-6 py-4 text-status-danger font-bold">{c.stats.failed}</td>
-                      <td className="px-6 py-4 text-status-info font-bold">{c.stats.replies || 0}</td>
-                      <td className="px-6 py-4"><StatusBadge status={c.status} /></td>
-                      <td className="px-6 py-4 min-w-[150px]">
+                      <td className="px-6 py-4 font-bold text-slate-800 max-w-[160px] truncate">{c.name}</td>
+                      <td className="px-6 py-4 font-semibold text-slate-500">{targetContacts}</td>
+                      <td className="px-6 py-4 text-emerald-600 font-bold">{totalSent}</td>
+                      <td className="px-6 py-4 text-red-600 font-bold">{failed}</td>
+                      <td className="px-6 py-4 text-amber-600 font-bold">{pending}</td>
+                      <td className="px-6 py-4 min-w-[120px]">
                         <div className="flex items-center gap-3">
-                          <div className="w-full bg-border rounded-full h-2">
+                          <div className="w-full bg-slate-200 rounded-full h-2">
                             <motion.div 
                               initial={{ width: 0 }}
                               animate={{ width: `${pct}%` }}
@@ -244,9 +274,10 @@ const Dashboard = () => {
                               className="bg-primary h-2 rounded-full" 
                             />
                           </div>
-                          <span className="text-xs font-bold text-text-muted">{pct}%</span>
+                          <span className="text-xs font-bold text-slate-500">{pct}%</span>
                         </div>
                       </td>
+                      <td className="px-6 py-4"><StatusBadge status={c.status} /></td>
                     </motion.tr>
                   );
                 })}

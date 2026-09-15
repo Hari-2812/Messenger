@@ -427,18 +427,21 @@ export default function EmailCreateCampaign() {
           {/* STEP 5: CONFIRM */}
           {step === STEPS.CONFIRM && (
             <motion.div key="step5" variants={slideVariants} initial="initial" animate="enter" exit="exit" transition={{ duration: 0.3 }} className="text-center py-10">
-              <div className="w-20 h-20 bg-status-success/20 text-status-success rounded-full flex items-center justify-center mx-auto mb-6">
-                <Icons.Check />
+              <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Check size={32} />
               </div>
-              <h2 className="text-3xl font-bold text-text mb-4">Ready to Activate!</h2>
-              <p className="text-text-muted mt-2 leading-relaxed max-w-md mx-auto">
+              <h2 className="text-3xl font-bold text-slate-800 mb-4">Ready to Activate!</h2>
+              <div className="mb-6 inline-block bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-bold text-sm border border-slate-200">
+                Techzon CRM Native Sending
+              </div>
+              <p className="text-slate-600 mt-2 leading-relaxed max-w-md mx-auto">
                 Your campaign <strong>{campaignName}</strong> is ready to send.<br /><br />
-                Clicking "Activate Campaign" will add the selected recipients to the secure email queue. The CRM will automatically process and send the emails according to your configured daily sending limit.<br /><br />
+                Emails are processed by the Techzon CRM queue through the configured employee Brevo account. Clicking "Activate Campaign" will add the selected recipients to the secure email queue. The CRM will automatically process and send the emails according to your configured daily sending limit.<br /><br />
                 Duplicate and unsubscribe protections are automatically enforced.
               </p>
               
               {submitError && (
-                <div className="p-4 bg-status-danger/10 text-status-danger rounded-xl max-w-md mx-auto mt-8 border border-status-danger/20 text-sm">
+                <div className="p-4 bg-red-50 text-red-600 rounded-xl max-w-md mx-auto mt-8 border border-red-100 text-sm font-semibold">
                   {submitError}
                 </div>
               )}
