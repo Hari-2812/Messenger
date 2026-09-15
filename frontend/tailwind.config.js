@@ -5,17 +5,17 @@ export default {
     extend: {
       colors: {
         primary: {
-          DEFAULT: '#2563EB',
-          dark: '#1D4ED8',
-          light: '#EFF6FF',
-          hover: '#1D4ED8', // matching dark for hover states
+          DEFAULT: '#5e17eb',
+          dark: '#4c11ce',
+          light: '#f5f0ff',
+          hover: '#4c11ce',
         },
         secondary: {
           DEFAULT: '#64748B',
         },
         accent: {
-          DEFAULT: '#2563EB', // using primary as accent for consistency
-          hover: '#1D4ED8',
+          DEFAULT: '#f97316',
+          hover: '#ea580c',
         },
         background: {
           DEFAULT: '#F8FAFC',

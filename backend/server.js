@@ -180,6 +180,9 @@ app.use('/api/automation', automationRoutes);
 app.use('/api/email-campaigns', emailCampaignRoutes);
 app.use('/api/email-templates', emailTemplateRoutes);
 
+const brevoRoutes = require('./routes/brevoRoutes');
+app.use('/api/brevo', brevoRoutes);
+
 const settingsRoutes = require('./routes/settingsRoutes');
 app.use('/api/settings', settingsRoutes);
 

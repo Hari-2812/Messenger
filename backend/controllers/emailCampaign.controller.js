@@ -12,13 +12,15 @@ const getCampaigns = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const campaigns = await EmailCampaign.find()
+    const query = req.user?.role === 'admin' ? {} : { createdBy: req.user._id };
+
+    const campaigns = await EmailCampaign.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .populate('createdBy', 'name email');
 
-    const total = await EmailCampaign.countDocuments();
+    const total = await EmailCampaign.countDocuments(query);
 
     res.json({
       campaigns,
@@ -36,9 +38,16 @@ const getCampaigns = async (req, res) => {
 // @route   GET /api/email-campaigns/dashboard-stats
 const getDashboardStats = async (req, res) => {
   try {
-    const totalContacts = await Contact.countDocuments({ email: { $ne: '' } });
-    const totalCampaigns = await EmailCampaign.countDocuments();
+    const contactQuery = req.user?.role === 'admin' ? { email: { $ne: '' } } : { email: { $ne: '' }, userId: req.user._id };
+    const totalContacts = await Contact.countDocuments(contactQuery);
     
+    const campaignQuery = req.user?.role === 'admin' ? {} : { createdBy: req.user._id };
+    const totalCampaigns = await EmailCampaign.countDocuments(campaignQuery);
+    
+    // Find campaign IDs for this user
+    const userCampaigns = await EmailCampaign.find(campaignQuery).select('_id');
+    const userCampaignIds = userCampaigns.map(c => c._id);
+
     // Emails sent today
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -46,17 +55,18 @@ const getDashboardStats = async (req, res) => {
     endOfDay.setHours(23, 59, 59, 999);
     
     const emailsSentToday = await EmailLog.countDocuments({ 
+      campaignId: { $in: userCampaignIds },
       status: 'sent', 
       sentAt: { $gte: startOfDay, $lte: endOfDay } 
     });
 
     // Aggregate stats directly from EmailLog
-    const delivered = await EmailLog.countDocuments({ status: { $in: ['sent', 'delivered'] } });
-    const failed = await EmailLog.countDocuments({ status: { $in: ['failed', 'bounce'] } });
-    const pending = await EmailLog.countDocuments({ status: { $in: ['pending', 'sending'] } });
+    const delivered = await EmailLog.countDocuments({ campaignId: { $in: userCampaignIds }, status: { $in: ['sent', 'delivered'] } });
+    const failed = await EmailLog.countDocuments({ campaignId: { $in: userCampaignIds }, status: { $in: ['failed', 'bounce'] } });
+    const pending = await EmailLog.countDocuments({ campaignId: { $in: userCampaignIds }, status: { $in: ['pending', 'sending'] } });
 
     // Recent campaigns
-    const recentCampaigns = await EmailCampaign.find().sort({ createdAt: -1 }).limit(5);
+    const recentCampaigns = await EmailCampaign.find(campaignQuery).sort({ createdAt: -1 }).limit(5);
 
     res.json({
       totalContacts,

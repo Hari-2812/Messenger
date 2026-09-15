@@ -12,9 +12,9 @@ class BrevoService {
     this.getHeaders = this.getHeaders.bind(this);
   }
 
-  getHeaders() {
+  getHeaders(customApiKey) {
     return {
-      'api-key': this.apiKey,
+      'api-key': customApiKey || this.apiKey,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
@@ -23,16 +23,20 @@ class BrevoService {
   /**
    * Send a single email
    */
-  async sendEmail({ to, subject, htmlContent, attachment }) {
-    if (!this.apiKey || !this.senderName || !this.senderEmail) {
-      return { success: false, error: 'Brevo configuration missing. Check BREVO_API_KEY, BREVO_SENDER_NAME, BREVO_SENDER_EMAIL in .env' };
+  async sendEmail({ to, subject, htmlContent, attachment, credentials }) {
+    const apiKey = credentials?.apiKey || this.apiKey;
+    const senderName = credentials?.senderName || this.senderName;
+    const senderEmail = credentials?.senderEmail || this.senderEmail;
+
+    if (!apiKey || !senderName || !senderEmail) {
+      return { success: false, error: 'Brevo configuration missing.' };
     }
 
     try {
       const payload = {
         sender: {
-          name: this.senderName,
-          email: this.senderEmail,
+          name: senderName,
+          email: senderEmail,
         },
         to: [{ email: to }],
         subject: subject,
@@ -43,7 +47,7 @@ class BrevoService {
         payload.attachment = attachment; // Format: [{ url: "...", name: "..." }, { content: base64, name: "..." }]
       }
 
-      const response = await axios.post(this.apiUrl, payload, { headers: this.getHeaders() });
+      const response = await axios.post(this.apiUrl, payload, { headers: this.getHeaders(apiKey) });
       return { success: true, messageId: response.data.messageId };
     } catch (error) {
       console.error('[BrevoService] sendEmail error:', error.response?.data || error.message);
@@ -57,16 +61,20 @@ class BrevoService {
   /**
    * Send bulk emails (using BCC or individual calls depending on personalization needs)
    */
-  async sendBulkEmail({ toList, subject, htmlContent, attachment }) {
-    if (!this.apiKey || !this.senderName || !this.senderEmail) {
-      return { success: false, error: 'Brevo configuration missing. Check BREVO_API_KEY, BREVO_SENDER_NAME, BREVO_SENDER_EMAIL in .env' };
+  async sendBulkEmail({ toList, subject, htmlContent, attachment, credentials }) {
+    const apiKey = credentials?.apiKey || this.apiKey;
+    const senderName = credentials?.senderName || this.senderName;
+    const senderEmail = credentials?.senderEmail || this.senderEmail;
+
+    if (!apiKey || !senderName || !senderEmail) {
+      return { success: false, error: 'Brevo configuration missing.' };
     }
 
     try {
       const payload = {
         sender: {
-          name: this.senderName,
-          email: this.senderEmail,
+          name: senderName,
+          email: senderEmail,
         },
         to: toList, 
         subject: subject,
@@ -77,7 +85,7 @@ class BrevoService {
         payload.attachment = attachment;
       }
 
-      const response = await axios.post(this.apiUrl, payload, { headers: this.getHeaders() });
+      const response = await axios.post(this.apiUrl, payload, { headers: this.getHeaders(apiKey) });
       return { success: true, messageId: response.data.messageId };
     } catch (error) {
       console.error('[BrevoService] sendBulkEmail error:', error.response?.data || error.message);

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { contactsAPI } from '../services/api';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { AlertTriangle, ClipboardList, Search, Users } from 'lucide-react';
 
 const Contacts = () => {
   const [contacts, setContacts] = useState([]);
@@ -107,7 +108,7 @@ const Contacts = () => {
           toast.success(`Deleted ${delCount} out of ${reqCount} contacts. Some contacts were invalid or already deleted.`, {
             id: loadingToast,
             duration: 5000,
-            icon: '⚠️'
+            icon: <AlertTriangle size={16} className="text-amber-500" />
           });
         } else {
           toast.success(`${delCount} contacts deleted successfully.`, {
@@ -324,7 +325,7 @@ const Contacts = () => {
             onClick={() => setShowBulkImport(true)}
             className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-secondary px-5 py-2.5 text-sm font-bold text-white shadow-lg hover:shadow-xl transition-all"
           >
-            📋 Bulk Import
+            <ClipboardList size={18} /> Bulk Import
           </button>
         </div>
       </div>
@@ -341,7 +342,7 @@ const Contacts = () => {
               className="input-field w-64 pr-10 border-border"
             />
             <span className="absolute inset-y-0 right-3 flex items-center text-text-muted">
-              🔍
+              <Search size={18} />
             </span>
           </div>
         </div>
@@ -394,7 +395,7 @@ const Contacts = () => {
         </div>
       ) : contacts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 bg-card border border-border rounded-2xl shadow-sm text-center">
-          <div className="text-6xl mb-4 opacity-80">👥</div>
+          <div className="mb-4 text-gray-400"><Users size={64} /></div>
           <h4 className="text-xl font-bold text-text">No contacts found.</h4>
           <p className="text-base text-text-muted max-w-sm mt-2 font-medium mb-6">
             Import contacts to start your email campaigns.

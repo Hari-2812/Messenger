@@ -14,6 +14,16 @@ const userSchema = new mongoose.Schema(
     isVerified: { type: Boolean, default: false },
     lastLogin: { type: Date },
     avatar: { type: String },
+    brevo: {
+      connected: { type: Boolean, default: false },
+      apiKeyEncrypted: { type: String },
+      senderEmail: { type: String },
+      senderName: { type: String },
+      dailyLimit: { type: Number, default: 300 },
+      emailsSentToday: { type: Number, default: 0 },
+      usageDate: { type: String },
+      lastVerifiedAt: { type: Date }
+    }
   },
   { timestamps: true }
 );

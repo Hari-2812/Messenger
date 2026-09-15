@@ -61,9 +61,10 @@ const getContacts = async (req, res) => {
   const skip = (page - 1) * limit;
   const search = req.query.search?.trim();
 
+  const baseFilter = req.user?.role === 'admin' ? {} : { userId: req.user._id };
   const filter = search
-    ? { $or: [{ name: { $regex: search, $options: 'i' } }, { phone: { $regex: search, $options: 'i' } }], isDeleted: { $ne: true } }
-    : { isDeleted: { $ne: true } };
+    ? { ...baseFilter, $or: [{ name: { $regex: search, $options: 'i' } }, { phone: { $regex: search, $options: 'i' } }], isDeleted: { $ne: true } }
+    : { ...baseFilter, isDeleted: { $ne: true } };
 
   const [contacts, total] = await Promise.all([
     Contact.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
@@ -97,6 +98,7 @@ const createContact = async (req, res) => {
   }
 
   const contact = await Contact.create({
+    userId: req.user._id,
     name: name.trim(),
     phone: phoneCheck.normalized,
     email: email?.trim() || '',
@@ -205,8 +207,8 @@ const bulkDeleteContacts = async (req, res) => {
     return res.json({ success: true, message: 'No valid ObjectIds provided', deletedCount: 0, requestedCount: ids.length });
   }
 
-  // Remove userId filter entirely because Contact schema is global to the CRM instance
-  const filter = { _id: { $in: validIds }, isDeleted: { $ne: true } };
+  const baseFilter = req.user?.role === 'admin' ? {} : { userId: req.user._id };
+  const filter = { ...baseFilter, _id: { $in: validIds }, isDeleted: { $ne: true } };
 
   try {
     const contacts = await Contact.find(filter);
@@ -466,30 +468,36 @@ const bulkImportContacts = async (req, res) => {
 
   for (const row of contacts) {
     const rawEmail = row.email ? row.email.toString().trim().toLowerCase() : '';
+    const rawPhone = row.phone ? validatePhone(row.phone).normalized : '';
     const name = row.name ? row.name.toString().trim() : '';
 
-    if (!rawEmail || !validator.isEmail(rawEmail)) {
+    if (!rawEmail && !rawPhone) {
       invalid++;
       continue;
     }
 
-    if (processedEmails.has(rawEmail)) {
+    if (rawEmail && !validator.isEmail(rawEmail)) {
+      invalid++;
+      continue;
+    }
+
+    const dedupeKey = rawEmail || rawPhone;
+    if (processedEmails.has(dedupeKey)) {
       duplicatesSkipped++;
       continue;
     }
-    processedEmails.add(rawEmail);
+    processedEmails.add(dedupeKey);
 
     validOperations.push({
       updateOne: {
-        filter: { email: rawEmail },
+        filter: rawEmail ? { email: rawEmail, userId: req.user._id } : { phone: rawPhone, userId: req.user._id },
         update: {
           $set: {
-            name: name || rawEmail.split('@')[0],
-            email: rawEmail,
+            userId: req.user._id,
+            name: name || rawEmail?.split('@')[0] || rawPhone || 'Unknown',
+            email: rawEmail || '',
+            phone: rawPhone || `EMAIL_${Date.now()}_${Math.random().toString(36).substring(7)}`,
             source: 'Manual Import'
-          },
-          $setOnInsert: {
-            phone: `EMAIL_${Date.now()}_${Math.random().toString(36).substring(7)}`
           }
         },
         upsert: true

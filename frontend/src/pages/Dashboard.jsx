@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { emailCampaignsAPI } from '../services/api';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Users, Rocket, Send, Clock, Inbox, ChevronRight } from 'lucide-react';
 
 /* ── KPI Stat Card ─────────────────────────────────────────────────── */
 const KpiCard = ({ title, value, sub, icon, trend, delay = 0 }) => (
@@ -14,7 +15,9 @@ const KpiCard = ({ title, value, sub, icon, trend, delay = 0 }) => (
   >
     <div className="relative z-10">
       <div className="flex items-start justify-between mb-4">
-        <span className="text-4xl text-primary drop-shadow-sm">{icon}</span>
+        <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary drop-shadow-sm">
+          {icon}
+        </div>
         {trend !== undefined && (
           <span className={`text-xs px-2.5 py-1 rounded-full font-semibold shadow-sm ${trend >= 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-red-50 text-red-600 border border-red-100'}`}>
             {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}%
@@ -146,28 +149,28 @@ const Dashboard = () => {
           delay={0.1}
           title="Total Contacts"
           value={stats.totalContacts?.toLocaleString()}
-          icon="👥"
+          icon={<Users size={24} />}
           sub="In your CRM"
         />
         <KpiCard
           delay={0.2}
           title="Active Campaigns"
           value={stats.totalCampaigns?.toLocaleString()}
-          icon="🚀"
+          icon={<Rocket size={24} />}
           sub="Currently running"
         />
         <KpiCard
           delay={0.3}
           title="Emails Sent Today"
           value={stats.emailsSentToday?.toLocaleString()}
-          icon="📤"
+          icon={<Send size={24} />}
           sub="Across all campaigns"
         />
         <KpiCard
           delay={0.4}
           title="Pending Queue"
           value={stats.pending?.toLocaleString()}
-          icon="⏳"
+          icon={<Clock size={24} />}
           sub="Waiting for next window"
         />
       </div>
@@ -188,10 +191,12 @@ const Dashboard = () => {
         </div>
 
         {!stats.recentCampaigns?.length ? (
-          <div className="py-16 text-center">
-            <p className="text-6xl mb-4">📭</p>
+          <div className="py-16 text-center flex flex-col items-center">
+            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 mb-6">
+              <Inbox size={40} />
+            </div>
             <p className="font-bold text-text text-lg mb-2">No campaigns yet</p>
-            <p className="text-text-muted text-sm mb-6">Create your first campaign to start automated email outreach.</p>
+            <p className="text-text-muted text-sm mb-6 max-w-sm">Create your first campaign to start automated email outreach.</p>
             <Link to="/email/campaigns" className="px-6 py-3 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl shadow-lg transition-colors">
               Create Campaign
             </Link>

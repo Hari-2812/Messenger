@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { emailTemplatesAPI, emailCampaignsAPI, settingsAPI, contactsAPI } from '../../services/api';
+import { Check, X } from 'lucide-react';
 
 /* ── Wizard Steps Enum ──────────────────────────────────────────────────────── */
 const STEPS = {
@@ -45,9 +46,9 @@ const Toast = ({ msg, type, onClose }) => {
         type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
       }`}
     >
-      <span>{type === 'success' ? '✓' : '✗'}</span>
+      <span>{type === 'success' ? <Check size={16} /> : <X size={16} />}</span>
       {msg}
-      <button onClick={onClose} className="ml-2 opacity-70 hover:opacity-100">✕</button>
+      <button onClick={onClose} className="ml-2 opacity-70 hover:opacity-100"><X size={14} /></button>
     </div>
   );
 };
