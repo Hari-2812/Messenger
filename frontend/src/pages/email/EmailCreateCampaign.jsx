@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { emailTemplatesAPI, emailCampaignsAPI, settingsAPI, contactsAPI } from '../../services/api';
+import API from '../../services/api';
 import { Check, X } from 'lucide-react';
 
 /* ── Wizard Steps Enum ──────────────────────────────────────────────────────── */
@@ -103,7 +104,7 @@ export default function EmailCreateCampaign() {
   const fetchBrevoStatus = async () => {
     try {
       setBrevoLoading(true);
-      const res = await axios.get('/api/brevo/status', { withCredentials: true });
+      const res = await API.get('/brevo/status');
       setBrevoStatus(res.data);
     } catch (err) {
       console.error('Failed to load brevo status', err);

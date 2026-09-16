@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, CheckCircle2, AlertCircle, RefreshCw, Unplug, X, Link as LinkIcon, ShieldCheck, User as UserIcon, Bell } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import axios from 'axios';
+import API from '../services/api';
 
 const Settings = () => {
   const [activeTab, setActiveTab] = useState('email');
@@ -27,7 +27,7 @@ const Settings = () => {
   const fetchBrevoStatus = async () => {
     try {
       setLoading(true);
-      const res = await axios.get('/api/brevo/status', { withCredentials: true });
+      const res = await API.get('/brevo/status');
       setBrevoStatus(res.data);
     } catch (err) {
       toast.error('Failed to load Brevo connection status');
@@ -46,7 +46,7 @@ const Settings = () => {
     const loadingToast = toast.loading('Verifying Brevo API Key...');
     
     try {
-      await axios.post('/api/brevo/connect', connectForm, { withCredentials: true });
+      await API.post('/brevo/connect', connectForm);
       toast.success('Brevo account connected successfully!', { id: loadingToast });
       setShowConnectModal(false);
       setConnectForm({ apiKey: '', senderEmail: '', senderName: '' });
@@ -62,7 +62,7 @@ const Settings = () => {
     setIsTesting(true);
     const loadingToast = toast.loading('Testing connection...');
     try {
-      await axios.post('/api/brevo/test', {}, { withCredentials: true });
+      await API.post('/brevo/test', {});
       toast.success('Brevo connection is working correctly.', { id: loadingToast });
     } catch (err) {
       toast.error('Unable to connect to Brevo. Please reconnect your account.', { id: loadingToast });
@@ -79,7 +79,7 @@ const Settings = () => {
     setIsDisconnecting(true);
     const loadingToast = toast.loading('Disconnecting...');
     try {
-      await axios.delete('/api/brevo/disconnect', { withCredentials: true });
+      await API.delete('/brevo/disconnect');
       toast.success('Brevo account disconnected', { id: loadingToast });
       fetchBrevoStatus();
     } catch (err) {

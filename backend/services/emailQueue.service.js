@@ -81,6 +81,10 @@ const processEmailQueue = async () => {
         continue;
       }
 
+      console.log(`[Queue] Employee Brevo connection found`);
+      console.log(`[Queue] Sender configured: true`);
+      console.log(`[Queue] API key configured: true`);
+
       const apiKey = decrypt(user.brevo.apiKeyEncrypted);
       if (!apiKey) {
         console.error(`[Queue] Failed to decrypt API key for user ${user._id}`);
@@ -94,7 +98,7 @@ const processEmailQueue = async () => {
       };
 
       // Handle daily limits reset
-      if (user.brevo.usageDate !== todayStr) {
+      if (!user.brevo.usageDate || user.brevo.usageDate !== todayStr) {
         user.brevo.emailsSentToday = 0;
         user.brevo.usageDate = todayStr;
         await user.save();

@@ -30,7 +30,10 @@ exports.connectBrevo = async (req, res) => {
         'brevo.apiKeyEncrypted': encryptedKey,
         'brevo.senderEmail': senderEmail,
         'brevo.senderName': senderName,
-        'brevo.lastVerifiedAt': new Date()
+        'brevo.lastVerifiedAt': new Date(),
+        'brevo.dailyLimit': 300,
+        'brevo.emailsSentToday': 0,
+        'brevo.usageDate': new Date().toISOString().split('T')[0]
       }
     });
 
