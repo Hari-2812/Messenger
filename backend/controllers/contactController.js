@@ -57,7 +57,7 @@ const processContactsInQueue = async (contacts, batchSize = 25) => {
 // @route   GET /api/contacts
 const getContacts = async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page) || 1);
-  const limit = Math.min(100, parseInt(req.query.limit) || 50);
+  const limit = Math.min(5000, parseInt(req.query.limit) || 50);
   const skip = (page - 1) * limit;
   const search = req.query.search?.trim();
 

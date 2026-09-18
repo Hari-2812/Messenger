@@ -13,6 +13,8 @@ const STEPS = {
   CONFIRM: 5,
 };
 
+const MAX_SELECTION = 250;
+
 /* ── Helper Icons ─────────────────────────────────────────────────────────── */
 const Icons = {
   Check: () => (
@@ -147,15 +149,34 @@ export default function EmailCreateCampaign() {
 
   const toggleContactSelection = (id) => {
     const newSelection = new Set(selectedContactIds);
-    if (newSelection.has(id)) newSelection.delete(id);
-    else newSelection.add(id);
+    if (newSelection.has(id)) {
+      newSelection.delete(id);
+    } else {
+      if (newSelection.size >= MAX_SELECTION) {
+        showToast(`You can select a maximum of ${MAX_SELECTION} contacts per campaign.`, 'error');
+        return;
+      }
+      newSelection.add(id);
+    }
     setSelectedContactIds(newSelection);
   };
 
   const selectAllFiltered = () => {
     const newSelection = new Set(selectedContactIds);
-    filteredContacts.forEach(c => newSelection.add(c._id));
+    let addedCount = 0;
+    
+    for (const c of filteredContacts) {
+      if (newSelection.size >= MAX_SELECTION) break;
+      if (!newSelection.has(c._id)) {
+        newSelection.add(c._id);
+        addedCount++;
+      }
+    }
+    
     setSelectedContactIds(newSelection);
+    if (addedCount > 0 && newSelection.size === MAX_SELECTION && filteredContacts.length > addedCount) {
+      showToast(`Selected up to the maximum limit of ${MAX_SELECTION} contacts.`, 'error');
+    }
   };
 
   const unselectAllFiltered = () => {
@@ -341,7 +362,7 @@ export default function EmailCreateCampaign() {
                 <div className="p-4 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
                     <span className="text-text font-bold">{contacts.length} Contacts</span>
-                    <span className="text-primary font-bold">{selectedContactIds.size} Selected</span>
+                    <span className="text-primary font-bold">{selectedContactIds.size} / {MAX_SELECTION} Selected</span>
                   </div>
                   <div className="flex gap-2">
                     <input 
@@ -380,6 +401,12 @@ export default function EmailCreateCampaign() {
                     </ul>
                   )}
                 </div>
+                
+                {selectedContactIds.size === MAX_SELECTION && (
+                  <div className="bg-amber-50 border-t border-amber-200 p-3 text-amber-700 text-sm font-semibold flex items-center justify-center">
+                    Maximum selection limit of {MAX_SELECTION} contacts reached.
+                  </div>
+                )}
               </div>
 
             </motion.div>
@@ -415,7 +442,7 @@ export default function EmailCreateCampaign() {
 
                     {((selectedContactIds.size === 0 ? filteredContacts.length : selectedContactIds.size) > (brevoStatus?.remaining ?? 300)) && (
                       <div className="p-3 bg-red-50 text-red-600 rounded-lg text-xs font-bold border border-red-200">
-                        Warning: You have {brevoStatus?.remaining ?? 300} emails remaining today. This campaign contains {selectedContactIds.size === 0 ? filteredContacts.length : selectedContactIds.size} recipients.
+                        Warning: You selected {selectedContactIds.size === 0 ? filteredContacts.length : selectedContactIds.size} contacts, but only {brevoStatus?.remaining ?? 300} emails remain in your daily limit.
                       </div>
                     )}
                     
