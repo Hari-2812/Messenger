@@ -411,6 +411,7 @@ const importContacts = async (req, res) => {
       if (department) customFields.Department = department;
 
       pendingContacts.push({ 
+        userId: req.user._id,
         name, 
         phone: normalizedPhone, 
         email, 

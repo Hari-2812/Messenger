@@ -149,7 +149,7 @@ const createCampaign = async (req, res) => {
       htmlContent,
       templateId: templateId || null,
       recipients: validRecipientIds,
-      dailyLimit: dailyLimit || 100,
+      dailyLimit: dailyLimit || 300,
       googleSheetSource: googleSheetSource || {},
       scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
       status: isDraft ? 'Draft' : (scheduledAt ? 'Scheduled' : 'Active'),

@@ -393,18 +393,33 @@ export default function EmailCreateCampaign() {
                 <div className="bg-background p-6 rounded-2xl border border-border">
                   <h3 className="text-text-muted text-sm font-medium uppercase tracking-wider mb-4">Configuration</h3>
                   <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-text mb-2">Daily Sending Limit</label>
-                      <input 
-                        type="number" 
-                        defaultValue={100}
-                        id="dailyLimit"
-                        className="w-full bg-card border border-border rounded-xl px-4 py-3 text-text focus:outline-none focus:border-primary transition-colors" 
-                      />
+                    <div className="bg-primary/5 border border-primary/20 p-4 rounded-xl">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-bold text-text">Today's Usage</span>
+                        <span className="text-sm font-bold text-primary">{brevoStatus?.emailsSentToday || 0} / {brevoStatus?.dailyLimit || 300}</span>
+                      </div>
+                      <div className="w-full bg-slate-200 rounded-full h-2 mb-2">
+                        <div 
+                          className={`h-2 rounded-full ${((brevoStatus?.emailsSentToday || 0) >= (brevoStatus?.dailyLimit || 300)) ? 'bg-red-500' : 'bg-primary'}`} 
+                          style={{ width: `${Math.min(100, ((brevoStatus?.emailsSentToday || 0) / (brevoStatus?.dailyLimit || 300)) * 100)}%` }}
+                        />
+                      </div>
+                      <div className="text-xs text-text-muted">
+                        Remaining: <span className="font-bold text-text">{brevoStatus?.remaining ?? 300} emails</span>
+                      </div>
                     </div>
+                    
                     <div>
-                      <span className="text-text-muted">Total Contacts Target:</span> <span className="text-text font-bold ml-2">{selectedContactIds.size === 0 ? 'All CRM Contacts' : selectedContactIds.size}</span>
+                      <span className="text-text-muted">Total Contacts Target:</span> <span className="text-text font-bold ml-2">{selectedContactIds.size === 0 ? filteredContacts.length : selectedContactIds.size}</span>
                     </div>
+
+                    {((selectedContactIds.size === 0 ? filteredContacts.length : selectedContactIds.size) > (brevoStatus?.remaining ?? 300)) && (
+                      <div className="p-3 bg-red-50 text-red-600 rounded-lg text-xs font-bold border border-red-200">
+                        Warning: You have {brevoStatus?.remaining ?? 300} emails remaining today. This campaign contains {selectedContactIds.size === 0 ? filteredContacts.length : selectedContactIds.size} recipients.
+                      </div>
+                    )}
+                    
+                    <input type="hidden" id="dailyLimit" value={brevoStatus?.dailyLimit || 300} />
                   </div>
                 </div>
 

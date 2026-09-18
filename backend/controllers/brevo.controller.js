@@ -24,7 +24,7 @@ exports.connectBrevo = async (req, res) => {
 
     const encryptedKey = encrypt(apiKey);
     
-    await User.findByIdAndUpdate(req.user.id, {
+    await User.findByIdAndUpdate(req.user._id, {
       $set: {
         'brevo.connected': true,
         'brevo.apiKeyEncrypted': encryptedKey,
@@ -46,7 +46,7 @@ exports.connectBrevo = async (req, res) => {
 
 exports.getBrevoStatus = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('brevo');
+    const user = await User.findById(req.user._id).select('brevo');
     if (!user || !user.brevo) {
       return res.json({ connected: false });
     }
@@ -76,7 +76,7 @@ exports.getBrevoStatus = async (req, res) => {
 
 exports.testBrevoConnection = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('brevo');
+    const user = await User.findById(req.user._id).select('brevo');
     if (!user || !user.brevo?.connected || !user.brevo.apiKeyEncrypted) {
       return res.status(400).json({ message: 'Brevo account is not connected.' });
     }
@@ -105,7 +105,7 @@ exports.testBrevoConnection = async (req, res) => {
 
 exports.disconnectBrevo = async (req, res) => {
   try {
-    await User.findByIdAndUpdate(req.user.id, {
+    await User.findByIdAndUpdate(req.user._id, {
       $set: {
         'brevo.connected': false,
         'brevo.apiKeyEncrypted': null,
