@@ -6,9 +6,14 @@ import { Bell, Menu, LogOut, Settings, User } from 'lucide-react';
 const Navbar = ({ title, onMenuClick, onToggleCollapse, collapsed }) => {
   const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
-  const initials = user?.name
-    ? user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
-    : '?';
+  const fullName = user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user?.email || 'User';
+  const initials = fullName
+    .split(' ')
+    .filter(Boolean)
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-white/80 backdrop-blur-xl">
@@ -52,8 +57,8 @@ const Navbar = ({ title, onMenuClick, onToggleCollapse, collapsed }) => {
                 {initials}
               </div>
               <div className="hidden text-left sm:block">
-                <p className="text-sm font-bold text-text leading-tight">{user?.name}</p>
-                <p className="text-xs text-text-muted">{user?.role || 'Admin'}</p>
+                <p className="text-sm font-bold text-text leading-tight max-w-[150px] truncate">{fullName}</p>
+                <p className="text-xs text-text-muted capitalize">{user?.role === 'admin' ? 'Admin' : 'Employee'}</p>
               </div>
               <motion.svg 
                 animate={{ rotate: menuOpen ? 180 : 0 }}
@@ -75,7 +80,7 @@ const Navbar = ({ title, onMenuClick, onToggleCollapse, collapsed }) => {
                     className="absolute right-0 z-20 mt-2 w-56 rounded-2xl border border-border bg-card py-2 shadow-elevated"
                   >
                     <div className="border-b border-border px-4 py-2 mb-2">
-                      <p className="truncate text-sm font-bold text-text">{user?.name}</p>
+                      <p className="truncate text-sm font-bold text-text">{fullName}</p>
                       <p className="truncate text-xs text-text-muted">{user?.email}</p>
                     </div>
                     <button onClick={() => { setMenuOpen(false); logout(); }} className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm font-medium text-status-danger transition-colors hover:bg-red-50">

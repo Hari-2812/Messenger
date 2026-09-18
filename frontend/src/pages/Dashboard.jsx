@@ -3,6 +3,7 @@ import { emailCampaignsAPI } from '../services/api';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, Rocket, Send, Clock, Inbox, ChevronRight } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 /* ── KPI Stat Card ─────────────────────────────────────────────────── */
 const KpiCard = ({ title, value, sub, icon, trend, delay = 0 }) => (
@@ -51,8 +52,8 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-/* ── Dashboard ──────────────────────────────────────────────────────── */
 const Dashboard = () => {
+  const { user } = useAuth();
   const [stats, setStats]       = useState(null);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState('');
@@ -74,10 +75,15 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
+    if (!user?._id) return;
+    setStats(null);
     fetchStats();
     const interval = setInterval(() => fetchStats(true), 30000);
-    return () => clearInterval(interval);
-  }, [fetchStats]);
+    return () => {
+      clearInterval(interval);
+      setStats(null);
+    };
+  }, [fetchStats, user?._id]);
 
   /* Loading Skeleton */
   if (loading) {
