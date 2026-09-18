@@ -75,7 +75,8 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
-    if (!user?._id) return;
+    const userId = user?._id || user?.id;
+    if (!userId) return;
     setStats(null);
     fetchStats();
     const interval = setInterval(() => fetchStats(true), 30000);
@@ -83,7 +84,7 @@ const Dashboard = () => {
       clearInterval(interval);
       setStats(null);
     };
-  }, [fetchStats, user?._id]);
+  }, [fetchStats, user?._id, user?.id]);
 
   /* Loading Skeleton */
   if (loading) {
