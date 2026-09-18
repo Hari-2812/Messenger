@@ -146,8 +146,8 @@ exports.syncContacts = async (req, res) => {
         continue;
       }
 
-      // Upsert contact based on email
-      const existing = await Contact.findOne({ email: contactData.email });
+      // Upsert contact based on email for this specific user
+      const existing = await Contact.findOne({ email: contactData.email, userId: req.user._id });
       if (existing) {
         // Update
         Object.assign(existing, contactData);
@@ -155,7 +155,7 @@ exports.syncContacts = async (req, res) => {
         updated++;
       } else {
         // Insert
-        const newContact = new Contact(contactData);
+        const newContact = new Contact({ ...contactData, userId: req.user._id });
         await newContact.save();
         imported++;
       }
@@ -338,7 +338,7 @@ exports.syncCampaignSheet = async (req, res) => {
       if (mapIdx.industry !== -1 && row[mapIdx.industry]) contactData.industry = row[mapIdx.industry].toString().trim();
       if (mapIdx.location !== -1 && row[mapIdx.location]) contactData.location = row[mapIdx.location].toString().trim();
 
-      const existing = await Contact.findOne({ email: contactData.email });
+      const existing = await Contact.findOne({ email: contactData.email, userId: req.user._id });
       if (existing) {
         // Update fields but protect unsubscribe state and campaign history
         let isModified = false;
@@ -356,7 +356,7 @@ exports.syncCampaignSheet = async (req, res) => {
         }
         resultContacts.push(existing);
       } else {
-        const newContact = new Contact({ ...contactData, source: 'Email Campaign Sheet' });
+        const newContact = new Contact({ ...contactData, source: 'Email Campaign Sheet', userId: req.user._id });
         await newContact.save();
         imported++;
         resultContacts.push(newContact);

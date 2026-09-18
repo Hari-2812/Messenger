@@ -78,6 +78,8 @@ const processEmailQueue = async () => {
       // Check Brevo config
       if (!user.brevo || !user.brevo.connected || !user.brevo.apiKeyEncrypted) {
         console.error(`[Queue] User ${user._id} has no valid Brevo connection`);
+        campaign.status = 'Failed';
+        await campaign.save();
         continue;
       }
 

@@ -187,7 +187,7 @@ export default function EmailCreateCampaign() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const dailyLimitVal = document.getElementById('dailyLimit')?.value || 100;
+      const dailyLimitVal = document.getElementById('dailyLimit')?.value || 300;
       
       const payload = {
         name: campaignName,
