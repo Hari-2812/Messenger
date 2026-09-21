@@ -16,7 +16,7 @@ const generateToken = (user) => {
 const register = async (req, res) => {
   console.log('==================================================');
   console.log('[DEBUG] Route reached: POST /api/auth/register');
-  console.log('[DEBUG] Request body:', JSON.stringify(req.body, null, 2));
+  console.log(`[DEBUG] Request received for email: ${req.body?.email}`);
   
   const { name, email, password } = req.body;
 
@@ -47,7 +47,7 @@ const register = async (req, res) => {
   const userExists = await User.findOne({ email: email.toLowerCase().trim() });
   if (userExists) {
     console.log('[DEBUG] MongoDB check: FAILED (Duplicate email)');
-    return res.status(409).json({ message: 'An account with this email already exists. Please sign in.' });
+    return res.status(409).json({ message: 'This email is already registered. Please log in instead.' });
   }
 
   console.log('[DEBUG] MongoDB save: STARTING');
