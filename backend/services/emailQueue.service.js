@@ -108,7 +108,7 @@ const processEmailQueue = async () => {
         await user.save();
       }
 
-      const dailyLimit = user.brevo.dailyLimit || 300;
+      const dailyLimit = user.brevo.dailyLimit || 250;
       let emailsSentToday = user.brevo.emailsSentToday || 0;
       const allowance = dailyLimit - emailsSentToday;
 

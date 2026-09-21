@@ -19,7 +19,7 @@ const getSenders = async (req, res) => {
       .select('firstName lastName email brevo.connected brevo.senderEmail brevo.senderName brevo.dailyLimit brevo.emailsSentToday brevo.usageDate');
 
     const mappedSenders = senders.map(sender => {
-      const dailyLimit = sender.brevo.dailyLimit || 300;
+      const dailyLimit = sender.brevo.dailyLimit || 250;
       const emailsSentToday = sender.brevo.usageDate === todayStr ? (sender.brevo.emailsSentToday || 0) : 0;
       const remainingToday = Math.max(0, dailyLimit - emailsSentToday);
 
@@ -100,14 +100,14 @@ const getDashboardStats = async (req, res) => {
 
     // Email Usage logic
     let emailsSentToday = 0;
-    let dailyLimit = 300;
-    let remainingToday = 300;
+    let dailyLimit = 250;
+    let remainingToday = 250;
     
     if (req.user && req.user.brevo) {
       const todayStr = new Date().toISOString().split('T')[0];
       // Note: If usageDate is not today, the queue handles reset, but we can safely report 0 sent today
       emailsSentToday = req.user.brevo.usageDate === todayStr ? (req.user.brevo.emailsSentToday || 0) : 0;
-      dailyLimit = req.user.brevo.dailyLimit || 300;
+      dailyLimit = req.user.brevo.dailyLimit || 250;
       remainingToday = Math.max(0, dailyLimit - emailsSentToday);
     }
 
@@ -118,7 +118,7 @@ const getDashboardStats = async (req, res) => {
         .select('firstName lastName email brevo.connected brevo.senderEmail brevo.senderName brevo.dailyLimit brevo.emailsSentToday brevo.usageDate');
 
       sendersList = senders.map(sender => {
-        const dLimit = sender.brevo.dailyLimit || 300;
+        const dLimit = sender.brevo.dailyLimit || 250;
         const eSentToday = sender.brevo.usageDate === todayStr ? (sender.brevo.emailsSentToday || 0) : 0;
         return {
           _id: sender._id,
@@ -179,7 +179,7 @@ const createCampaign = async (req, res) => {
     }
 
     const todayStr = new Date().toISOString().split('T')[0];
-    const sLimit = sender.brevo.dailyLimit || 300;
+    const sLimit = sender.brevo.dailyLimit || 250;
     const sSentToday = sender.brevo.usageDate === todayStr ? (sender.brevo.emailsSentToday || 0) : 0;
     const sRemaining = Math.max(0, sLimit - sSentToday);
 
@@ -237,7 +237,7 @@ const createCampaign = async (req, res) => {
       htmlContent,
       templateId: templateId || null,
       recipients: validRecipientIds,
-      dailyLimit: dailyLimit || 300,
+      dailyLimit: dailyLimit || 250,
       googleSheetSource: googleSheetSource || {},
       scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
       status: isDraft ? 'Draft' : (scheduledAt ? 'Scheduled' : 'Active'),
@@ -378,7 +378,7 @@ const getQueueStatus = async (req, res) => {
       sentAt: { $gte: startOfDay }
     });
     
-    const dailyLimit = 300; // Ideally fetch from config
+    const dailyLimit = 250; // Ideally fetch from config
 
     res.json({
       pending,
@@ -433,7 +433,7 @@ const checkHealth = async (req, res) => {
     configured: !!process.env.BREVO_API_KEY,
     queue: true,
     processor: true,
-    dailyLimit: 300
+    dailyLimit: 250
   });
 };
 

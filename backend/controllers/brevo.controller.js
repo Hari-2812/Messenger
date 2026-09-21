@@ -31,7 +31,7 @@ exports.connectBrevo = async (req, res) => {
         'brevo.senderEmail': senderEmail,
         'brevo.senderName': senderName,
         'brevo.lastVerifiedAt': new Date(),
-        'brevo.dailyLimit': 300,
+        'brevo.dailyLimit': 250,
         'brevo.emailsSentToday': 0,
         'brevo.usageDate': new Date().toISOString().split('T')[0]
       }
@@ -65,7 +65,7 @@ exports.getBrevoStatus = async (req, res) => {
       senderName: user.brevo.senderName,
       dailyLimit: user.brevo.dailyLimit,
       emailsSentToday,
-      remaining: Math.max(0, (user.brevo.dailyLimit || 300) - emailsSentToday),
+      remaining: Math.max(0, (user.brevo.dailyLimit || 250) - emailsSentToday),
       lastVerifiedAt: user.brevo.lastVerifiedAt
     });
   } catch (error) {

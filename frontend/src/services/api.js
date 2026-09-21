@@ -111,6 +111,7 @@ export const automationAPI = {
 export const emailCampaignsAPI = {
   getAll: (params) => API.get('/email-campaigns', { params }),
   getDashboardStats: () => API.get('/email-campaigns/dashboard-stats'),
+  getSenders: () => API.get('/email-campaigns/senders'),
   create: (data) => {
     // If it's FormData (for attachments), send directly, otherwise JSON
     if (data instanceof FormData) {

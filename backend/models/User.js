@@ -19,7 +19,7 @@ const userSchema = new mongoose.Schema(
       apiKeyEncrypted: { type: String },
       senderEmail: { type: String },
       senderName: { type: String },
-      dailyLimit: { type: Number, default: 300 },
+      dailyLimit: { type: Number, default: 250 },
       emailsSentToday: { type: Number, default: 0 },
       usageDate: { type: String },
       lastVerifiedAt: { type: Date }
