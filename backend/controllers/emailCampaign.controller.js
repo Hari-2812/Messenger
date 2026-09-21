@@ -9,7 +9,8 @@ const fs = require('fs');
 // @route   GET /api/email-campaigns/senders
 const getSenders = async (req, res) => {
   try {
-    if (req.user?.role !== 'admin') {
+    const isAdmin = req.user?.role && (req.user.role.toLowerCase() === 'admin' || req.user.role.toLowerCase() === 'administrator');
+    if (!isAdmin) {
       return res.status(403).json({ message: 'Only administrators can view senders.' });
     }
 
@@ -112,7 +113,8 @@ const getDashboardStats = async (req, res) => {
     }
 
     let sendersList = [];
-    if (req.user?.role === 'admin') {
+    const isAdmin = req.user?.role && (req.user.role.toLowerCase() === 'admin' || req.user.role.toLowerCase() === 'administrator');
+    if (isAdmin) {
       const todayStr = new Date().toISOString().split('T')[0];
       const senders = await User.find({ 'brevo.connected': true })
         .select('firstName lastName email brevo.connected brevo.senderEmail brevo.senderName brevo.dailyLimit brevo.emailsSentToday brevo.usageDate');
@@ -162,7 +164,8 @@ const getDashboardStats = async (req, res) => {
 // @route   POST /api/email-campaigns
 const createCampaign = async (req, res) => {
   try {
-    if (req.user?.role !== 'admin') {
+    const isAdmin = req.user?.role && (req.user.role.toLowerCase() === 'admin' || req.user.role.toLowerCase() === 'administrator');
+    if (!isAdmin) {
       return res.status(403).json({ message: 'Only administrators can create campaigns.' });
     }
 

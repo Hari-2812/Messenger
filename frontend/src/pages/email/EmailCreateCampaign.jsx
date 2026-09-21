@@ -63,6 +63,7 @@ export default function EmailCreateCampaign() {
   const [templates, setTemplates] = useState([]);
   const [senders, setSenders] = useState([]);
   const [sendersLoading, setSendersLoading] = useState(true);
+  const [sendersError, setSendersError] = useState(null);
   const [toast, setToast] = useState(null);
   
   const showToast = (msg, type = 'success') => setToast({ msg, type });
@@ -107,10 +108,16 @@ export default function EmailCreateCampaign() {
   const fetchSenders = async () => {
     try {
       setSendersLoading(true);
+      setSendersError(null);
       const res = await emailCampaignsAPI.getSenders();
       setSenders(res.data);
     } catch (err) {
       console.error('Failed to load senders', err);
+      if (err.response?.status === 403) {
+        setSendersError('You do not have permission to manage email senders.');
+      } else {
+        setSendersError(err.response?.data?.message || 'Failed to fetch senders from the server.');
+      }
     } finally {
       setSendersLoading(false);
     }
@@ -322,6 +329,14 @@ export default function EmailCreateCampaign() {
               <div className="space-y-4 max-w-2xl mx-auto">
                 {sendersLoading ? (
                   <div className="text-center text-text-muted py-8">Loading eligible senders...</div>
+                ) : sendersError ? (
+                  <div className="text-center py-10 bg-white rounded-2xl border-2 border-red-200 shadow-sm">
+                    <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <X size={32} />
+                    </div>
+                    <h3 className="text-xl font-bold text-red-600 mb-2">Authorization Error</h3>
+                    <p className="text-text-muted max-w-md mx-auto mb-6">{sendersError}</p>
+                  </div>
                 ) : senders.length === 0 ? (
                   <div className="text-center py-10 bg-white rounded-2xl border-2 border-dashed border-border shadow-sm">
                     <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
