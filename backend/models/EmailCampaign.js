@@ -18,7 +18,7 @@ const emailCampaignSchema = new mongoose.Schema(
     timezone: { type: String, default: 'UTC' },
     status: {
       type: String,
-      enum: ['Draft', 'Scheduled', 'Active', 'Paused', 'Completed', 'Failed'],
+      enum: ['Draft', 'Scheduled', 'Active', 'Sending', 'Partially Sent', 'Paused', 'Completed', 'Completed_with_errors', 'Failed'],
       default: 'Draft',
     },
     scheduledAt: { type: Date, default: null },
@@ -39,6 +39,7 @@ const emailCampaignSchema = new mongoose.Schema(
       completionPercentage: { type: Number, default: 0 },
     },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    senderUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     error: { type: String, default: null }, // Global error if campaign fails entirely
   },
   { timestamps: true }

@@ -11,7 +11,8 @@ const {
   resumeCampaign,
   getQueueStatus,
   sendTestEmail,
-  checkHealth
+  checkHealth,
+  getSenders
 } = require('../controllers/emailCampaign.controller');
 const { protect } = require('../middleware/auth');
 
@@ -20,6 +21,7 @@ const upload = multer({ dest: 'uploads/' });
 router.use(protect); // Require auth for all email campaign routes
 // You could apply `admin` middleware here if they strictly need to be admin. We will just use `protect` for now unless `admin` is fully integrated everywhere.
 
+router.get('/senders', getSenders);
 router.get('/dashboard-stats', getDashboardStats);
 router.get('/queue-status', getQueueStatus);
 router.get('/health', checkHealth);

@@ -293,6 +293,66 @@ const Dashboard = () => {
           </div>
         )}
       </motion.div>
+      {/* ── Admin Only: Email Sender Accounts Table ── */}
+      {user?.role === 'admin' && stats.senders && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.9 }}
+          className="bg-card border border-border rounded-3xl overflow-hidden shadow-xl"
+        >
+          <div className="px-6 py-5 border-b border-border bg-background/50">
+            <h3 className="text-lg font-bold text-text">Email Sender Accounts</h3>
+            <p className="text-sm text-text-muted mt-1">Employees with connected Brevo accounts.</p>
+          </div>
+          
+          {!stats.senders.length ? (
+            <div className="p-6 text-center text-text-muted text-sm font-semibold">
+              No employees have connected a Brevo account yet.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-text">
+                <thead className="text-xs uppercase bg-background text-text-muted font-bold border-b border-border">
+                  <tr>
+                    <th className="px-6 py-4 font-semibold">Employee</th>
+                    <th className="px-6 py-4 font-semibold">Sender Email</th>
+                    <th className="px-6 py-4 font-semibold">Sent Today</th>
+                    <th className="px-6 py-4 font-semibold">Daily Limit</th>
+                    <th className="px-6 py-4 font-semibold">Remaining</th>
+                    <th className="px-6 py-4 font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {stats.senders.map((sender, i) => {
+                    const limitReached = sender.brevo.remainingToday <= 0;
+                    return (
+                      <motion.tr 
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 1.0 + (i * 0.05) }}
+                        key={sender._id}
+                        className="hover:bg-slate-50 transition-colors"
+                      >
+                        <td className="px-6 py-4 font-bold text-slate-800">{sender.firstName} {sender.lastName}</td>
+                        <td className="px-6 py-4 text-slate-500">{sender.brevo.senderEmail}</td>
+                        <td className="px-6 py-4 font-bold text-slate-800">{sender.brevo.emailsSentToday}</td>
+                        <td className="px-6 py-4 text-slate-500">{sender.brevo.dailyLimit}</td>
+                        <td className="px-6 py-4 font-bold text-slate-800">{sender.brevo.remainingToday}</td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${limitReached ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                            {limitReached ? 'Limit Reached' : 'Available'}
+                          </span>
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </motion.div>
+      )}
     </motion.div>
   );
 };

@@ -1,8 +1,50 @@
 const EmailCampaign = require('../models/EmailCampaign');
 const EmailLog = require('../models/EmailLog');
 const Contact = require('../models/Contact');
+const User = require('../models/User');
 const brevoService = require('../services/brevo.service');
 const fs = require('fs');
+
+// @desc    Get eligible email sender accounts (Admin only)
+// @route   GET /api/email-campaigns/senders
+const getSenders = async (req, res) => {
+  try {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ message: 'Only administrators can view senders.' });
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    const senders = await User.find({ 'brevo.connected': true })
+      .select('firstName lastName email brevo.connected brevo.senderEmail brevo.senderName brevo.dailyLimit brevo.emailsSentToday brevo.usageDate');
+
+    const mappedSenders = senders.map(sender => {
+      const dailyLimit = sender.brevo.dailyLimit || 300;
+      const emailsSentToday = sender.brevo.usageDate === todayStr ? (sender.brevo.emailsSentToday || 0) : 0;
+      const remainingToday = Math.max(0, dailyLimit - emailsSentToday);
+
+      return {
+        _id: sender._id,
+        firstName: sender.firstName,
+        lastName: sender.lastName,
+        email: sender.email,
+        brevo: {
+          connected: sender.brevo.connected,
+          senderEmail: sender.brevo.senderEmail,
+          senderName: sender.brevo.senderName,
+          dailyLimit,
+          emailsSentToday,
+          remainingToday
+        }
+      };
+    });
+
+    res.json(mappedSenders);
+  } catch (error) {
+    console.error('Error fetching senders:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
 
 // @desc    Get email campaigns
 // @route   GET /api/email-campaigns
@@ -69,6 +111,32 @@ const getDashboardStats = async (req, res) => {
       remainingToday = Math.max(0, dailyLimit - emailsSentToday);
     }
 
+    let sendersList = [];
+    if (req.user?.role === 'admin') {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const senders = await User.find({ 'brevo.connected': true })
+        .select('firstName lastName email brevo.connected brevo.senderEmail brevo.senderName brevo.dailyLimit brevo.emailsSentToday brevo.usageDate');
+
+      sendersList = senders.map(sender => {
+        const dLimit = sender.brevo.dailyLimit || 300;
+        const eSentToday = sender.brevo.usageDate === todayStr ? (sender.brevo.emailsSentToday || 0) : 0;
+        return {
+          _id: sender._id,
+          firstName: sender.firstName,
+          lastName: sender.lastName,
+          email: sender.email,
+          brevo: {
+            connected: sender.brevo.connected,
+            senderEmail: sender.brevo.senderEmail,
+            senderName: sender.brevo.senderName,
+            dailyLimit: dLimit,
+            emailsSentToday: eSentToday,
+            remainingToday: Math.max(0, dLimit - eSentToday)
+          }
+        };
+      });
+    }
+
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.set('Pragma', 'no-cache');
     res.set('Expires', '0');
@@ -81,7 +149,8 @@ const getDashboardStats = async (req, res) => {
       delivered,
       failed,
       pending,
-      recentCampaigns
+      recentCampaigns,
+      senders: sendersList
     });
   } catch (error) {
     console.error('Error fetching dashboard stats:', error);
@@ -93,8 +162,27 @@ const getDashboardStats = async (req, res) => {
 // @route   POST /api/email-campaigns
 const createCampaign = async (req, res) => {
   try {
-    const { name, subject, htmlContent, templateId, scheduledAt, isDraft, dailyLimit, googleSheetSource } = req.body;
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ message: 'Only administrators can create campaigns.' });
+    }
+
+    const { name, subject, htmlContent, templateId, scheduledAt, isDraft, dailyLimit, googleSheetSource, senderUserId } = req.body;
     
+    if (!senderUserId) {
+      return res.status(400).json({ message: 'Please select a sender employee for this campaign.' });
+    }
+
+    // Verify sender exists and has valid Brevo connection
+    const sender = await User.findById(senderUserId).select('brevo');
+    if (!sender || !sender.brevo || !sender.brevo.connected) {
+      return res.status(400).json({ message: 'The selected sender employee does not have a valid Brevo connection.' });
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const sLimit = sender.brevo.dailyLimit || 300;
+    const sSentToday = sender.brevo.usageDate === todayStr ? (sender.brevo.emailsSentToday || 0) : 0;
+    const sRemaining = Math.max(0, sLimit - sSentToday);
+
     // Idempotency Check: Prevent duplicate campaigns (same name, created by same user, within 5 mins)
     if (req.user && req.user._id) {
       const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000);
@@ -157,7 +245,10 @@ const createCampaign = async (req, res) => {
         totalContacts: validRecipientIds.length,
         pending: validRecipientIds.length
       },
-      createdBy: req.user?._id
+      createdBy: req.user?._id,
+      senderUserId: sender._id,
+      senderName: sender.brevo.senderName,
+      senderEmail: sender.brevo.senderEmail
     });
 
     // Save campaign FIRST, but be prepared to roll back
@@ -356,5 +447,6 @@ module.exports = {
   resumeCampaign,
   getQueueStatus,
   sendTestEmail,
-  checkHealth
+  checkHealth,
+  getSenders
 };

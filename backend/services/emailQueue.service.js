@@ -62,14 +62,15 @@ const processEmailQueue = async () => {
     // 1. Group pending jobs by Campaign to process per employee
     const activeCampaigns = await EmailCampaign.find({
       status: { $in: ['Active', 'Partially Sent', 'Sending'] }
-    }).select('_id createdBy subject htmlContent attachmentUrl');
+    }).select('_id createdBy senderUserId subject htmlContent attachmentUrl');
 
     const touchedCampaignIds = new Set();
     const todayStr = new Date().toISOString().split('T')[0];
 
     for (const campaign of activeCampaigns) {
-      // Find the user who owns this campaign
-      const user = await User.findById(campaign.createdBy);
+      // Find the user who owns this campaign (specifically the senderUserId)
+      const targetUserId = campaign.senderUserId || campaign.createdBy;
+      const user = await User.findById(targetUserId);
       if (!user) {
         console.error(`[Queue] User not found for campaign ${campaign._id}`);
         continue;

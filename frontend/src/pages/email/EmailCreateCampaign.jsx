@@ -61,8 +61,8 @@ export default function EmailCreateCampaign() {
   
   // Data States
   const [templates, setTemplates] = useState([]);
-  const [brevoStatus, setBrevoStatus] = useState(null);
-  const [brevoLoading, setBrevoLoading] = useState(true);
+  const [senders, setSenders] = useState([]);
+  const [sendersLoading, setSendersLoading] = useState(true);
   const [toast, setToast] = useState(null);
   
   const showToast = (msg, type = 'success') => setToast({ msg, type });
@@ -70,6 +70,7 @@ export default function EmailCreateCampaign() {
   
   // Selections
   const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [selectedSenderId, setSelectedSenderId] = useState(null);
   const [campaignName, setCampaignName] = useState('');
   const [campaignSubject, setCampaignSubject] = useState('');
   
@@ -90,7 +91,7 @@ export default function EmailCreateCampaign() {
   // Fetch initial data
   useEffect(() => {
     fetchTemplates();
-    fetchBrevoStatus();
+    fetchSenders();
   }, []);
 
   const fetchTemplates = async () => {
@@ -103,15 +104,15 @@ export default function EmailCreateCampaign() {
     }
   };
 
-  const fetchBrevoStatus = async () => {
+  const fetchSenders = async () => {
     try {
-      setBrevoLoading(true);
-      const res = await API.get('/brevo/status');
-      setBrevoStatus(res.data);
+      setSendersLoading(true);
+      const res = await emailCampaignsAPI.getSenders();
+      setSenders(res.data);
     } catch (err) {
-      console.error('Failed to load brevo status', err);
+      console.error('Failed to load senders', err);
     } finally {
-      setBrevoLoading(false);
+      setSendersLoading(false);
     }
   };
 
@@ -192,7 +193,11 @@ export default function EmailCreateCampaign() {
       if (!campaignSubject) setCampaignSubject(selectedTemplate.subject);
     }
     if (step === STEPS.SENDER) {
-      if (!brevoStatus?.connected) return alert('You must connect a Brevo account in Settings before sending a campaign.');
+      if (!selectedSenderId) return alert('Please select a sender employee account.');
+      const sender = senders.find(s => s._id === selectedSenderId);
+      if (!sender || sender.brevo.remainingToday <= 0) {
+        return alert('Selected sender has exhausted their daily limit.');
+      }
     }
     if (step === STEPS.CONTACTS) {
       if (selectedContactIds.size === 0) {
@@ -208,13 +213,13 @@ export default function EmailCreateCampaign() {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      const selectedSender = senders.find(s => s._id === selectedSenderId);
       const dailyLimitVal = document.getElementById('dailyLimit')?.value || 300;
       
       const payload = {
         name: campaignName,
         subject: campaignSubject || selectedTemplate.subject,
-        senderName: brevoStatus.senderName,
-        senderEmail: brevoStatus.senderEmail,
+        senderUserId: selectedSenderId,
         templateId: selectedTemplate._id,
         htmlContent: selectedTemplate.htmlContent,
         recipients: Array.from(selectedContactIds),
@@ -313,35 +318,53 @@ export default function EmailCreateCampaign() {
           {/* STEP 2: SENDER VERIFICATION */}
           {step === STEPS.SENDER && (
             <motion.div key="step2" variants={slideVariants} initial="initial" animate="enter" exit="exit" transition={{ duration: 0.3 }}>
-              <h2 className="text-2xl font-bold text-text mb-6">Step 2: Sender Verification</h2>
+              <h2 className="text-2xl font-bold text-text mb-6">Step 2: Select Sender Employee</h2>
               <div className="space-y-4 max-w-2xl mx-auto">
-                {brevoLoading ? (
-                  <div className="text-center text-text-muted py-8">Checking connection...</div>
-                ) : brevoStatus?.connected ? (
-                  <div className="p-6 rounded-2xl border-2 border-primary bg-primary/5">
-                    <div className="flex items-center gap-4 mb-4">
-                      <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
-                        <Icons.Check />
-                      </div>
-                      <div>
-                        <div className="font-bold text-text text-lg">{brevoStatus.senderName}</div>
-                        <div className="text-sm text-text-muted">{brevoStatus.senderEmail}</div>
-                      </div>
-                    </div>
-                    <div className="text-sm font-semibold text-emerald-600 flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-lg inline-flex border border-emerald-200">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Connected via Brevo
-                    </div>
-                  </div>
-                ) : (
+                {sendersLoading ? (
+                  <div className="text-center text-text-muted py-8">Loading eligible senders...</div>
+                ) : senders.length === 0 ? (
                   <div className="text-center py-10 bg-white rounded-2xl border-2 border-dashed border-border shadow-sm">
                     <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
                       <X size={32} />
                     </div>
-                    <h3 className="text-xl font-bold text-text mb-2">Brevo account not connected</h3>
-                    <p className="text-text-muted max-w-md mx-auto mb-6">Connect your Brevo account in Settings → Email Sending before starting a campaign.</p>
-                    <a href="/settings" className="px-6 py-3 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl transition-all shadow-md inline-block">
-                      Go to Email Settings
-                    </a>
+                    <h3 className="text-xl font-bold text-text mb-2">No Connected Senders</h3>
+                    <p className="text-text-muted max-w-md mx-auto mb-6">No employees have connected a Brevo account yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                    {senders.map(sender => {
+                      const limitReached = sender.brevo.remainingToday <= 0;
+                      return (
+                        <div 
+                          key={sender._id}
+                          onClick={() => !limitReached && setSelectedSenderId(sender._id)}
+                          className={`relative p-5 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between ${
+                            selectedSenderId === sender._id 
+                              ? 'border-primary bg-primary/5' 
+                              : limitReached 
+                                ? 'border-border bg-gray-50 opacity-60 cursor-not-allowed' 
+                                : 'border-border bg-background hover:border-primary/50'
+                          }`}
+                        >
+                          <div>
+                            <div className="font-bold text-text text-lg">{sender.firstName} {sender.lastName}</div>
+                            <div className="text-sm text-text-muted">{sender.brevo.senderEmail}</div>
+                            <div className="mt-2 text-xs font-semibold">
+                              <span className="text-slate-500">Sent Today: {sender.brevo.emailsSentToday} / {sender.brevo.dailyLimit}</span>
+                              <span className="mx-2">•</span>
+                              <span className={limitReached ? 'text-red-500' : 'text-emerald-500'}>
+                                {sender.brevo.remainingToday} Remaining
+                              </span>
+                            </div>
+                          </div>
+                          {selectedSenderId === sender._id && (
+                            <div className="text-primary">
+                              <Icons.Check />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -420,33 +443,46 @@ export default function EmailCreateCampaign() {
                 <div className="bg-background p-6 rounded-2xl border border-border">
                   <h3 className="text-text-muted text-sm font-medium uppercase tracking-wider mb-4">Configuration</h3>
                   <div className="space-y-4">
-                    <div className="bg-primary/5 border border-primary/20 p-4 rounded-xl">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm font-bold text-text">Today's Usage</span>
-                        <span className="text-sm font-bold text-primary">{brevoStatus?.emailsSentToday || 0} / {brevoStatus?.dailyLimit || 300}</span>
-                      </div>
-                      <div className="w-full bg-slate-200 rounded-full h-2 mb-2">
-                        <div 
-                          className={`h-2 rounded-full ${((brevoStatus?.emailsSentToday || 0) >= (brevoStatus?.dailyLimit || 300)) ? 'bg-red-500' : 'bg-primary'}`} 
-                          style={{ width: `${Math.min(100, ((brevoStatus?.emailsSentToday || 0) / (brevoStatus?.dailyLimit || 300)) * 100)}%` }}
-                        />
-                      </div>
-                      <div className="text-xs text-text-muted">
-                        Remaining: <span className="font-bold text-text">{brevoStatus?.remaining ?? 300} emails</span>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <span className="text-text-muted">Total Contacts Target:</span> <span className="text-text font-bold ml-2">{selectedContactIds.size === 0 ? filteredContacts.length : selectedContactIds.size}</span>
-                    </div>
+                    {(() => {
+                      const s = senders.find(x => x._id === selectedSenderId);
+                      const dailyLimit = s?.brevo?.dailyLimit || 300;
+                      const emailsSentToday = s?.brevo?.emailsSentToday || 0;
+                      const remaining = s?.brevo?.remainingToday ?? 300;
+                      const isOver = emailsSentToday >= dailyLimit;
+                      const selectedCount = selectedContactIds.size === 0 ? filteredContacts.length : selectedContactIds.size;
+                      
+                      return (
+                        <>
+                          <div className="bg-primary/5 border border-primary/20 p-4 rounded-xl">
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-sm font-bold text-text">{s?.firstName}'s Usage</span>
+                              <span className="text-sm font-bold text-primary">{emailsSentToday} / {dailyLimit}</span>
+                            </div>
+                            <div className="w-full bg-slate-200 rounded-full h-2 mb-2">
+                              <div 
+                                className={`h-2 rounded-full ${isOver ? 'bg-red-500' : 'bg-primary'}`} 
+                                style={{ width: `${Math.min(100, (emailsSentToday / dailyLimit) * 100)}%` }}
+                              />
+                            </div>
+                            <div className="text-xs text-text-muted">
+                              Remaining: <span className="font-bold text-text">{remaining} emails</span>
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <span className="text-text-muted">Total Contacts Target:</span> <span className="text-text font-bold ml-2">{selectedCount}</span>
+                          </div>
 
-                    {((selectedContactIds.size === 0 ? filteredContacts.length : selectedContactIds.size) > (brevoStatus?.remaining ?? 300)) && (
-                      <div className="p-3 bg-red-50 text-red-600 rounded-lg text-xs font-bold border border-red-200">
-                        Warning: You selected {selectedContactIds.size === 0 ? filteredContacts.length : selectedContactIds.size} contacts, but only {brevoStatus?.remaining ?? 300} emails remain in your daily limit.
-                      </div>
-                    )}
-                    
-                    <input type="hidden" id="dailyLimit" value={brevoStatus?.dailyLimit || 300} />
+                          {selectedCount > remaining && (
+                            <div className="p-3 bg-red-50 text-red-600 rounded-lg text-xs font-bold border border-red-200">
+                              Warning: You selected {selectedCount} contacts, but this sender only has {remaining} emails remaining today.
+                            </div>
+                          )}
+                          
+                          <input type="hidden" id="dailyLimit" value={dailyLimit} />
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 
