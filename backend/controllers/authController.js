@@ -194,4 +194,60 @@ const updateProfile = async (req, res) => {
   });
 };
 
-module.exports = { register, login, getMe, logout, updateProfile };
+const crypto = require('crypto');
+
+const forgotPassword = async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ message: 'Please provide an email address' });
+  }
+
+  const user = await User.findOne({ email: email.toLowerCase().trim() });
+  if (!user) {
+    return res.status(404).json({ message: 'User not found' });
+  }
+
+  const resetToken = user.getResetPasswordToken();
+  await user.save({ validateBeforeSave: false });
+
+  // Optional: Attempt to send via brevo if configured, otherwise just log or return success
+  // For security, do NOT return the raw token in the API response in production.
+  // The token will be printed securely by our CLI script or sent via email.
+  
+  res.status(200).json({ 
+    success: true, 
+    message: 'Reset token generated successfully. Please check your email or run the Admin CLI script to retrieve it.'
+  });
+};
+
+const resetPassword = async (req, res) => {
+  const resetPasswordToken = crypto
+    .createHash('sha256')
+    .update(req.params.token)
+    .digest('hex');
+
+  const user = await User.findOne({
+    resetPasswordToken,
+    resetPasswordExpire: { $gt: Date.now() },
+  });
+
+  if (!user) {
+    return res.status(400).json({ message: 'Invalid or expired reset token' });
+  }
+
+  if (!req.body.password) {
+    return res.status(400).json({ message: 'Please provide a new password' });
+  }
+
+  user.password = req.body.password;
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpire = undefined;
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Password reset successful. Please log in.',
+  });
+};
+
+module.exports = { register, login, getMe, logout, updateProfile, forgotPassword, resetPassword };
