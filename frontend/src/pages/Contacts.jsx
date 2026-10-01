@@ -27,7 +27,7 @@ const Contacts = () => {
   const fetchContacts = useCallback(async (p = 1, q = '') => {
     setLoading(true);
     try {
-      const params = { page: p, limit: 50 };
+      const params = { page: p, limit: 50, _t: Date.now() };
       if (q.trim()) params.search = q.trim();
 
       const res = await contactsAPI.getAll(params);

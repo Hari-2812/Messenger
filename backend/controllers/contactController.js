@@ -391,7 +391,7 @@ const importContacts = async (req, res) => {
 
       // DB duplicate checks
       if (normalizedPhone) {
-        const existingPhone = await Contact.findOne({ phone: normalizedPhone });
+        const existingPhone = await Contact.findOne({ phone: normalizedPhone, isDeleted: { $ne: true } });
         if (existingPhone) {
           skipped += 1;
           continue;
@@ -399,7 +399,7 @@ const importContacts = async (req, res) => {
       }
       
       if (email) {
-        const existingEmail = await Contact.findOne({ email: email });
+        const existingEmail = await Contact.findOne({ email: email, isDeleted: { $ne: true } });
         if (existingEmail) {
           skipped += 1;
           continue;
@@ -498,7 +498,9 @@ const bulkImportContacts = async (req, res) => {
             name: name || rawEmail?.split('@')[0] || rawPhone || 'Unknown',
             email: rawEmail || '',
             phone: rawPhone || `EMAIL_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-            source: 'Manual Import'
+            source: 'Manual Import',
+            isDeleted: false,
+            deletedAt: null
           }
         },
         upsert: true
