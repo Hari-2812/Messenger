@@ -61,6 +61,11 @@ const getContacts = async (req, res) => {
   const skip = (page - 1) * limit;
   const search = req.query.search?.trim();
 
+  // Prevent aggressive browser/proxy caching for authenticated API responses
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
   const baseFilter = req.user?.role === 'admin' ? {} : { userId: req.user._id };
   const filter = search
     ? { ...baseFilter, $or: [{ name: { $regex: search, $options: 'i' } }, { phone: { $regex: search, $options: 'i' } }], isDeleted: { $ne: true } }
@@ -70,6 +75,8 @@ const getContacts = async (req, res) => {
     Contact.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
     Contact.countDocuments(filter),
   ]);
+
+  console.log(`[Diagnostic] GET /api/contacts query for user ${req.user._id}. Total found: ${total}`);
 
   res.json({ contacts, total, page, pages: Math.ceil(total / limit) });
 };
@@ -501,6 +508,10 @@ const bulkImportContacts = async (req, res) => {
             source: 'Manual Import',
             isDeleted: false,
             deletedAt: null
+          },
+          $setOnInsert: {
+            createdAt: new Date(),
+            updatedAt: new Date()
           }
         },
         upsert: true

@@ -33,6 +33,10 @@ const Contacts = () => {
       const res = await contactsAPI.getAll(params);
       const data = res.data;
 
+      if (!data) {
+        throw new Error('Received empty data from the server. This may be a caching issue.');
+      }
+
       if (Array.isArray(data)) {
         setContacts(data);
         setTotal(data.length);
