@@ -311,8 +311,69 @@ const retrySyncContact = async (req, res) => {
   });
 };
 
-// @desc    Import contacts from CSV
-// @route   POST /api/contacts/import
+// Patch for importContacts & bulkImportContacts in contactController.js
+
+const buildImportResponse = (reqCount, validCount, invalidCount, duplicatesSkippedCount, result, error, rowErrors) => {
+  let imported = 0;
+  let updated = 0;
+  let skipped = duplicatesSkippedCount;
+  let failed = invalidCount;
+  let errorDetails = [...rowErrors];
+
+  if (result) {
+    imported = result.upsertedCount || 0;
+    updated = result.modifiedCount || 0;
+    skipped += ((result.matchedCount || 0) - updated);
+  } else if (error && error.writeErrors) {
+    imported = error.result?.upsertedCount || 0;
+    updated = error.result?.modifiedCount || 0;
+    skipped += ((error.result?.matchedCount || 0) - updated);
+    
+    failed += error.writeErrors.length;
+    const writeErrorDetails = error.writeErrors.slice(0, 20).map(we => ({
+      index: we.index,
+      code: we.code,
+      reason: we.errmsg
+    }));
+    errorDetails = [...errorDetails, ...writeErrorDetails];
+  } else if (error) {
+    // Fatal error
+    return {
+      success: false,
+      message: 'Fatal error during import: ' + error.message,
+      totalRows: reqCount,
+      validRows: validCount,
+      created: 0,
+      updated: 0,
+      skipped: skipped,
+      failed: reqCount,
+      imported: 0, // Legacy support
+      duplicatesSkipped: skipped // Legacy support
+    };
+  }
+
+  const success = (imported > 0 || updated > 0);
+  
+  return {
+    success: success,
+    message: success ? 'Import completed' : 'Import failed or no new records added',
+    // Requested exact structure
+    totalRows: reqCount,
+    validRows: validCount,
+    created: imported,
+    updated: updated,
+    skipped: skipped,
+    failed: failed,
+    errorDetails: errorDetails.slice(0, 50),
+    // Legacy support for Contacts.jsx toast
+    total: reqCount,
+    imported: imported,
+    duplicatesSkipped: skipped,
+    invalid: invalidCount,
+    errors: errorDetails.length
+  };
+};
+
 const importContacts = async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: 'Please upload a file' });
@@ -411,8 +472,7 @@ const importContacts = async (req, res) => {
         },
         $setOnInsert: {
           syncStatus: 'pending',
-          createdAt: new Date(),
-          updatedAt: new Date()
+          createdAt: new Date()
         }
       };
 
@@ -448,73 +508,22 @@ const importContacts = async (req, res) => {
   }
 
   if (validOperations.length === 0) {
-    return res.json({
-      message: 'No valid contacts to import.',
-      total: results.length,
-      imported: 0,
-      updated: 0,
-      failed: 0,
-      pending: 0,
-      skipped: duplicatesSkipped,
-      errors: rowErrors.length,
-      errorDetails: rowErrors
-    });
+    return res.json(buildImportResponse(results.length, 0, invalid, duplicatesSkipped, null, null, rowErrors));
   }
 
   try {
     const result = await Contact.bulkWrite(validOperations, { ordered: false });
-    
-    const imported = result.upsertedCount || 0;
-    const updated = result.modifiedCount || 0;
-    const matchedButNotModified = (result.matchedCount || 0) - updated;
-    duplicatesSkipped += matchedButNotModified;
-
-    return res.json({
-      message: 'Import completed',
-      total: results.length,
-      imported,
-      updated,
-      failed: 0,
-      pending: imported + updated,
-      skipped: duplicatesSkipped,
-      errors: rowErrors.length,
-      errorDetails: rowErrors.slice(0, 50)
-    });
-
+    return res.json(buildImportResponse(results.length, validOperations.length, invalid, duplicatesSkipped, result, null, rowErrors));
   } catch (error) {
     if (error.writeErrors) {
-      const imported = error.result?.upsertedCount || 0;
-      const updated = error.result?.modifiedCount || 0;
-      const matchedButNotModified = (error.result?.matchedCount || 0) - updated;
-      
-      const failedCount = error.writeErrors.length;
-      const writeErrorDetails = error.writeErrors.slice(0, 20).map(we => ({
-        index: we.index,
-        code: we.code,
-        reason: we.errmsg
-      }));
-
-      return res.json({
-        message: 'Import completed with some errors',
-        total: results.length,
-        imported,
-        updated,
-        failed: failedCount,
-        pending: imported + updated,
-        skipped: duplicatesSkipped + matchedButNotModified,
-        errors: rowErrors.length + writeErrorDetails.length,
-        errorDetails: [...rowErrors, ...writeErrorDetails].slice(0, 50)
-      });
+      return res.json(buildImportResponse(results.length, validOperations.length, invalid, duplicatesSkipped, null, error, rowErrors));
     }
-
     console.error('[ContactImport] Fatal Error:', error);
-    return res.status(500).json({ message: 'Unable to process the import: ' + error.message });
+    const fatalResp = buildImportResponse(results.length, validOperations.length, invalid, duplicatesSkipped, null, error, rowErrors);
+    return res.status(500).json(fatalResp);
   }
 };
 
-
-// @desc    Bulk import contacts directly from JSON (Pasted Name/Email)
-// @route   POST /api/contacts/bulk-import
 const bulkImportContacts = async (req, res) => {
   const { contacts } = req.body;
 
@@ -562,8 +571,7 @@ const bulkImportContacts = async (req, res) => {
         deletedAt: null
       },
       $setOnInsert: {
-        createdAt: new Date(),
-        updatedAt: new Date()
+        createdAt: new Date()
       }
     };
 
@@ -589,68 +597,20 @@ const bulkImportContacts = async (req, res) => {
   }
 
   if (validOperations.length === 0) {
-    return res.status(400).json({
-      success: false,
-      message: 'No valid contacts to import.',
-      invalid,
-      duplicatesSkipped,
-      errorDetails: rowErrors
-    });
+    const resp = buildImportResponse(contacts.length, 0, invalid, duplicatesSkipped, null, null, rowErrors);
+    return res.status(400).json(resp);
   }
 
   try {
     const result = await Contact.bulkWrite(validOperations, { ordered: false });
-    
-    const imported = result.upsertedCount || 0;
-    const updated = result.modifiedCount || 0;
-    const matchedButNotModified = (result.matchedCount || 0) - updated;
-    duplicatesSkipped += matchedButNotModified;
-
-    return res.json({
-      success: true,
-      message: 'Bulk import completed successfully',
-      total: contacts.length,
-      imported,
-      updated,
-      duplicatesSkipped,
-      invalid,
-      errors: rowErrors.length,
-      errorDetails: rowErrors
-    });
-
+    return res.json(buildImportResponse(contacts.length, validOperations.length, invalid, duplicatesSkipped, result, null, rowErrors));
   } catch (error) {
     if (error.writeErrors) {
-      const imported = error.result?.upsertedCount || 0;
-      const updated = error.result?.modifiedCount || 0;
-      const matchedButNotModified = (error.result?.matchedCount || 0) - updated;
-      
-      const failedCount = error.writeErrors.length;
-      
-      const writeErrorDetails = error.writeErrors.slice(0, 20).map(we => ({
-        index: we.index,
-        code: we.code,
-        reason: we.errmsg
-      }));
-
-      return res.json({
-        success: true,
-        message: 'Bulk import completed with some errors',
-        total: contacts.length,
-        imported,
-        updated,
-        duplicatesSkipped: duplicatesSkipped + matchedButNotModified,
-        invalid: invalid + failedCount,
-        errors: rowErrors.length + writeErrorDetails.length,
-        errorDetails: [...rowErrors, ...writeErrorDetails]
-      });
+      return res.json(buildImportResponse(contacts.length, validOperations.length, invalid, duplicatesSkipped, null, error, rowErrors));
     }
-
     console.error('[BulkImport] Fatal Error:', error);
-    return res.status(500).json({
-      success: false,
-      code: 'CONTACT_IMPORT_FAILED',
-      message: 'Unable to import contacts: ' + error.message
-    });
+    const fatalResp = buildImportResponse(contacts.length, validOperations.length, invalid, duplicatesSkipped, null, error, rowErrors);
+    return res.status(500).json(fatalResp);
   }
 };
 
