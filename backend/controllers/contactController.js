@@ -320,9 +320,11 @@ const importContacts = async (req, res) => {
 
   const filePath = req.file.path;
   const results = [];
-  const errors = [];
-  const pendingContacts = [];
-  let skipped = 0;
+  let invalid = 0;
+  let duplicatesSkipped = 0;
+  const validOperations = [];
+  const processedKeys = new Set();
+  const rowErrors = [];
 
   try {
     const fileExtension = req.file.originalname.split('.').pop().toLowerCase();
@@ -346,14 +348,11 @@ const importContacts = async (req, res) => {
       return res.status(400).json({ message: 'Unsupported file format. Please upload a CSV or Excel file.' });
     }
 
-    // To prevent in-batch duplicates
-    const seenPhones = new Set();
-    const seenEmails = new Set();
-
-    for (const row of results) {
+    for (let i = 0; i < results.length; i++) {
+      const row = results[i];
       const name = (row.Name || row.name || '').trim();
       const rawPhone = (row.Phone || row.phone || '').trim();
-      const email = (row.Email || row.email || '').trim();
+      const email = (row.Email || row.email || '').toString().trim().toLowerCase();
       const tags = (row.Tags || row.tags || '').split(',').map((t) => t.trim()).filter(Boolean);
       const source = (row.Source || row.source || 'CSV').trim();
       
@@ -361,12 +360,14 @@ const importContacts = async (req, res) => {
       const department = (row.Department || row.department || '').trim();
 
       if (!name) {
-        errors.push({ row, reason: 'Missing name' });
+        invalid++;
+        rowErrors.push({ row: i + 1, reason: 'Missing name' });
         continue;
       }
 
       if (!rawPhone && !email) {
-        errors.push({ row, reason: 'Must provide either phone or email' });
+        invalid++;
+        rowErrors.push({ row: i + 1, reason: 'Must provide either phone or email' });
         continue;
       }
 
@@ -374,60 +375,70 @@ const importContacts = async (req, res) => {
       if (rawPhone) {
         const phoneCheck = validatePhone(rawPhone);
         if (!phoneCheck.valid) {
-          errors.push({ row, reason: phoneCheck.error });
+          invalid++;
+          rowErrors.push({ row: i + 1, reason: phoneCheck.error });
           continue;
         }
         normalizedPhone = phoneCheck.normalized;
-      } else {
-        // Generate placeholder for email-only contacts
-        normalizedPhone = `EMAIL_${Date.now()}_${Math.random().toString(36).substring(7)}`;
       }
 
-      // In-batch duplicate checks
-      if (normalizedPhone && seenPhones.has(normalizedPhone)) {
-        skipped += 1;
+      if (email && !validator.isEmail(email)) {
+        invalid++;
+        rowErrors.push({ row: i + 1, reason: `Invalid email format: ${email}` });
         continue;
       }
-      if (email && seenEmails.has(email)) {
-        skipped += 1;
-        continue;
-      }
-      
-      if (normalizedPhone) seenPhones.add(normalizedPhone);
-      if (email) seenEmails.add(email);
 
-      // DB duplicate checks
-      if (normalizedPhone) {
-        const existingPhone = await Contact.findOne({ phone: normalizedPhone, isDeleted: { $ne: true } });
-        if (existingPhone) {
-          skipped += 1;
-          continue;
-        }
+      const dedupeKey = email || normalizedPhone;
+      if (processedKeys.has(dedupeKey)) {
+        duplicatesSkipped++;
+        continue;
       }
-      
-      if (email) {
-        const existingEmail = await Contact.findOne({ email: email, isDeleted: { $ne: true } });
-        if (existingEmail) {
-          skipped += 1;
-          continue;
-        }
-      }
+      processedKeys.add(dedupeKey);
 
       const customFields = {};
       if (college) customFields.College = college;
       if (department) customFields.Department = department;
 
-      pendingContacts.push({ 
-        userId: req.user._id,
-        name, 
-        phone: normalizedPhone, 
-        email, 
-        tags, 
-        source, 
-        customFields,
-        syncStatus: 'pending' 
+      const updateDoc = {
+        $set: {
+          userId: req.user._id,
+          name: name,
+          tags,
+          source,
+          customFields,
+          isDeleted: false,
+          deletedAt: null
+        },
+        $setOnInsert: {
+          syncStatus: 'pending',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      };
+
+      if (email) {
+        updateDoc.$setOnInsert.email = email;
+        if (normalizedPhone) {
+          updateDoc.$set.phone = normalizedPhone;
+        } else {
+          updateDoc.$setOnInsert.phone = `EMAIL_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        }
+      } else {
+        updateDoc.$setOnInsert.phone = normalizedPhone;
+        updateDoc.$setOnInsert.email = '';
+      }
+
+      validOperations.push({
+        updateOne: {
+          filter: email ? { email, userId: req.user._id } : { phone: normalizedPhone, userId: req.user._id },
+          update: updateDoc,
+          upsert: true
+        }
       });
     }
+  } catch (parseError) {
+    console.error('[ContactImport] Parse error:', parseError);
+    return res.status(500).json({ message: 'Error parsing the uploaded file.' });
   } finally {
     try {
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
@@ -436,22 +447,71 @@ const importContacts = async (req, res) => {
     }
   }
 
-  const batchResults = pendingContacts.length > 0
-    ? await processContactsInQueue(pendingContacts)
-    : { imported: 0, synced: 0, failed: 0, pending: 0, errors: [] };
+  if (validOperations.length === 0) {
+    return res.json({
+      message: 'No valid contacts to import.',
+      total: results.length,
+      imported: 0,
+      updated: 0,
+      failed: 0,
+      pending: 0,
+      skipped: duplicatesSkipped,
+      errors: rowErrors.length,
+      errorDetails: rowErrors
+    });
+  }
 
-  res.json({
-    message: 'Import completed',
-    total: pendingContacts.length,
-    imported: batchResults.imported,
-    synced: batchResults.synced,
-    failed: batchResults.failed,
-    pending: batchResults.pending,
-    skipped,
-    errors: errors.length + batchResults.errors.length,
-    errorDetails: [...errors.slice(0, 10), ...batchResults.errors.slice(0, 10)],
-  });
+  try {
+    const result = await Contact.bulkWrite(validOperations, { ordered: false });
+    
+    const imported = result.upsertedCount || 0;
+    const updated = result.modifiedCount || 0;
+    const matchedButNotModified = (result.matchedCount || 0) - updated;
+    duplicatesSkipped += matchedButNotModified;
+
+    return res.json({
+      message: 'Import completed',
+      total: results.length,
+      imported,
+      updated,
+      failed: 0,
+      pending: imported + updated,
+      skipped: duplicatesSkipped,
+      errors: rowErrors.length,
+      errorDetails: rowErrors.slice(0, 50)
+    });
+
+  } catch (error) {
+    if (error.writeErrors) {
+      const imported = error.result?.upsertedCount || 0;
+      const updated = error.result?.modifiedCount || 0;
+      const matchedButNotModified = (error.result?.matchedCount || 0) - updated;
+      
+      const failedCount = error.writeErrors.length;
+      const writeErrorDetails = error.writeErrors.slice(0, 20).map(we => ({
+        index: we.index,
+        code: we.code,
+        reason: we.errmsg
+      }));
+
+      return res.json({
+        message: 'Import completed with some errors',
+        total: results.length,
+        imported,
+        updated,
+        failed: failedCount,
+        pending: imported + updated,
+        skipped: duplicatesSkipped + matchedButNotModified,
+        errors: rowErrors.length + writeErrorDetails.length,
+        errorDetails: [...rowErrors, ...writeErrorDetails].slice(0, 50)
+      });
+    }
+
+    console.error('[ContactImport] Fatal Error:', error);
+    return res.status(500).json({ message: 'Unable to process the import: ' + error.message });
+  }
 };
+
 
 // @desc    Bulk import contacts directly from JSON (Pasted Name/Email)
 // @route   POST /api/contacts/bulk-import
@@ -459,131 +519,141 @@ const bulkImportContacts = async (req, res) => {
   const { contacts } = req.body;
 
   if (!Array.isArray(contacts) || contacts.length === 0) {
-    return res.status(400).json({ 
-      success: false, 
-      code: 'CONTACT_IMPORT_EMPTY',
-      message: 'No contacts were provided.' 
-    });
+    return res.status(400).json({ success: false, code: 'CONTACT_IMPORT_EMPTY', message: 'No contacts provided.' });
   }
 
-  let imported = 0;
-  let updated = 0;
   let invalid = 0;
   let duplicatesSkipped = 0;
-
   const validOperations = [];
-  const processedEmails = new Set();
+  const processedKeys = new Set();
+  const rowErrors = [];
 
-  for (const row of contacts) {
+  for (let i = 0; i < contacts.length; i++) {
+    const row = contacts[i];
     const rawEmail = row.email ? row.email.toString().trim().toLowerCase() : '';
     const rawPhone = row.phone ? validatePhone(row.phone).normalized : '';
     const name = row.name ? row.name.toString().trim() : '';
 
     if (!rawEmail && !rawPhone) {
       invalid++;
+      rowErrors.push({ row: i + 1, reason: 'Missing both email and phone' });
       continue;
     }
 
     if (rawEmail && !validator.isEmail(rawEmail)) {
       invalid++;
+      rowErrors.push({ row: i + 1, reason: `Invalid email format: ${rawEmail}` });
       continue;
     }
 
     const dedupeKey = rawEmail || rawPhone;
-    if (processedEmails.has(dedupeKey)) {
+    if (processedKeys.has(dedupeKey)) {
       duplicatesSkipped++;
       continue;
     }
-    processedEmails.add(dedupeKey);
+    processedKeys.add(dedupeKey);
+
+    const updateDoc = {
+      $set: {
+        userId: req.user._id,
+        name: name || rawEmail?.split('@')[0] || rawPhone || 'Unknown',
+        source: 'Manual Import',
+        isDeleted: false,
+        deletedAt: null
+      },
+      $setOnInsert: {
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+    };
+
+    if (rawEmail) {
+      updateDoc.$setOnInsert.email = rawEmail;
+      if (rawPhone) {
+        updateDoc.$set.phone = rawPhone;
+      } else {
+        updateDoc.$setOnInsert.phone = `EMAIL_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      }
+    } else {
+      updateDoc.$setOnInsert.phone = rawPhone;
+      updateDoc.$setOnInsert.email = ''; 
+    }
 
     validOperations.push({
       updateOne: {
         filter: rawEmail ? { email: rawEmail, userId: req.user._id } : { phone: rawPhone, userId: req.user._id },
-        update: {
-          $set: {
-            userId: req.user._id,
-            name: name || rawEmail?.split('@')[0] || rawPhone || 'Unknown',
-            email: rawEmail || '',
-            phone: rawPhone || `EMAIL_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-            source: 'Manual Import',
-            isDeleted: false,
-            deletedAt: null
-          },
-          $setOnInsert: {
-            createdAt: new Date(),
-            updatedAt: new Date()
-          }
-        },
+        update: updateDoc,
         upsert: true
       }
     });
   }
 
   if (validOperations.length === 0) {
-    return res.status(400).json({ 
-      success: false, 
-      code: 'CONTACT_IMPORT_FAILED',
-      message: 'No valid contacts found to import.' 
+    return res.status(400).json({
+      success: false,
+      message: 'No valid contacts to import.',
+      invalid,
+      duplicatesSkipped,
+      errorDetails: rowErrors
     });
   }
 
   try {
     const result = await Contact.bulkWrite(validOperations, { ordered: false });
-    imported = result.upsertedCount || 0;
-    updated = result.modifiedCount || 0;
     
-    // In bulkWrite, matchedCount includes both modified and unmodified matches. 
-    // If a document matched but wasn't modified (e.g. data is exactly the same), 
-    // it won't be in modifiedCount. So technically "updated" might be lower than actual matches.
-    const matchedButNotModified = (result.matchedCount || 0) - (result.modifiedCount || 0);
+    const imported = result.upsertedCount || 0;
+    const updated = result.modifiedCount || 0;
+    const matchedButNotModified = (result.matchedCount || 0) - updated;
     duplicatesSkipped += matchedButNotModified;
 
-    console.log('[ContactsImport] Import requested');
-    console.log(`[ContactsImport] Records received: ${contacts.length}`);
-    console.log(`[ContactsImport] Valid records: ${validOperations.length}`);
-    console.log(`[ContactsImport] Duplicates skipped: ${duplicatesSkipped}`);
-    console.log(`[ContactsImport] Invalid records: ${invalid}`);
-    console.log(`[ContactsImport] Successfully inserted/updated: ${imported + updated}`);
-
-    res.json({
+    return res.json({
       success: true,
-      message: 'Bulk import completed',
+      message: 'Bulk import completed successfully',
       total: contacts.length,
       imported,
       updated,
       duplicatesSkipped,
-      invalid
+      invalid,
+      errors: rowErrors.length,
+      errorDetails: rowErrors
     });
-  } catch (error) {
-    console.error('[BulkImport] Error:', error);
 
-    // If it's a BulkWriteError but we still managed to insert/update some, we can recover
-    if (error.name === 'BulkWriteError' && error.result) {
-      imported = error.result.upsertedCount || 0;
-      updated = error.result.modifiedCount || 0;
-      const matchedButNotModified = (error.result.matchedCount || 0) - (error.result.modifiedCount || 0);
-      duplicatesSkipped += matchedButNotModified;
+  } catch (error) {
+    if (error.writeErrors) {
+      const imported = error.result?.upsertedCount || 0;
+      const updated = error.result?.modifiedCount || 0;
+      const matchedButNotModified = (error.result?.matchedCount || 0) - updated;
       
-      console.log(`[ContactsImport] Partial success after error. Inserted/Updated: ${imported + updated}`);
+      const failedCount = error.writeErrors.length;
       
+      const writeErrorDetails = error.writeErrors.slice(0, 20).map(we => ({
+        index: we.index,
+        code: we.code,
+        reason: we.errmsg
+      }));
+
       return res.json({
         success: true,
         message: 'Bulk import completed with some errors',
         total: contacts.length,
         imported,
         updated,
-        duplicatesSkipped,
-        invalid: invalid + (error.writeErrors ? error.writeErrors.length : 0)
+        duplicatesSkipped: duplicatesSkipped + matchedButNotModified,
+        invalid: invalid + failedCount,
+        errors: rowErrors.length + writeErrorDetails.length,
+        errorDetails: [...rowErrors, ...writeErrorDetails]
       });
     }
 
-    res.status(500).json({ 
-      success: false, 
+    console.error('[BulkImport] Fatal Error:', error);
+    return res.status(500).json({
+      success: false,
       code: 'CONTACT_IMPORT_FAILED',
-      message: 'Unable to import contacts: ' + error.message 
+      message: 'Unable to import contacts: ' + error.message
     });
   }
 };
+
 
 module.exports = {
   getContacts,
